@@ -1,0 +1,3 @@
+# Copy this file to "local.properties" (Android Studio creates it for you; just add the line below).
+# Get a free client ID at https://devportal.jamendo.com  (create an app, copy the Client ID)
+JAMENDO_CLIENT_ID=PASTE_YOUR_JAMENDO_CLIENT_ID_HERE

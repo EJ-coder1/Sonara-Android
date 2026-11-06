@@ -1,0 +1,59 @@
+# Privacy Policy
+
+Last updated: [DATE]
+
+Sonara ("the app", "we") is a music player developed by [YOUR NAME OR COMPANY]. This policy explains what the app does with information. In short: we do not run any servers for this app, we do not have user accounts, and we do not collect, sell or share your personal information.
+
+## 1. Information the app does not collect
+
+Sonara does not require you to create an account. It does not collect your name, email address, phone number, contacts, location, advertising ID, photos, or device identifiers. It does not contain ads, analytics or crash-reporting tools.
+
+## 2. Music on your phone
+
+If you allow access to music and audio files, the app reads the title, artist, album, duration and artwork of the songs on your device so it can show and play them. This information is read on your device only. Your music files are never uploaded. Their details stay on your device unless you turn on the optional Lyrics feature described in section 4.
+
+## 3. Information saved on your device
+
+The app saves the following on your device only: your liked songs, playlists, recently played list, and settings such as theme. For online tracks, this includes the track title, artist, picture address and stream address so your lists keep working. This data stays on your device. You can remove it at any time in Settings > Delete all my data, or by clearing the app's storage or uninstalling the app.
+
+## 4. Free music from Jamendo and optional lyrics (internet use)
+
+The app can stream free, Creative Commons-licensed music provided by Jamendo (jamendo.com). When you open Home, browse a mood or search, the app sends a request directly from your phone to Jamendo's servers. The request includes what you are asking for (for example a search word or mood) and, as with any internet connection, your IP address and basic technical details such as your device's app version. When you play an online track, your phone streams the audio and artwork from Jamendo. We do not receive or store these requests. Jamendo handles this information under its own privacy policy, available at jamendo.com.
+
+If you turn on Lyrics in Settings > Player (it is off by default), the app looks up lyrics on LRCLIB (lrclib.net) when you open the lyrics view for a song. The request contains that song's title, artist, album and length, plus your IP address as with any internet connection. Nothing else about you or your music is sent. Lyrics are saved on your device so the same song is not requested twice, and you can clear them in Settings. LRCLIB handles requests under its own terms, available at lrclib.net. Lyrics are shown for personal reading only and are not stored or shared by us.
+
+If you choose Share on a track, your phone's share menu opens. What happens next depends on the app you choose.
+
+## 5. Permissions the app asks for
+
+- Music and audio (READ_MEDIA_AUDIO, or storage on older Android versions): to find and play the songs on your phone.
+- Notifications: to show playback controls in the notification shade and on the lock screen. This is optional.
+- Internet and network state: to stream free music and show artwork.
+- Foreground service (media playback) and wake lock: to keep music playing when the screen is off or you leave the app.
+
+You can change these permissions at any time in your phone's Settings.
+
+## 6. Sharing
+
+We do not sell, rent or share personal information, because we do not collect it. The only third parties involved are Jamendo and, only if you turn on Lyrics, LRCLIB, as described in section 4.
+
+## 7. Children
+
+Sonara is a general audience music player. It does not knowingly collect personal information from anyone, including children. Some music on Jamendo may contain mature themes; parents may want to supervise younger children.
+
+## 8. Security
+
+Data saved by the app stays inside the app's private storage on your device. Connections to Jamendo and LRCLIB use HTTPS.
+
+## 9. Your choices and rights
+
+Because we do not hold your data, there is nothing for us to access, correct or delete on our side. You control everything stored on your device as described in section 3. If you have questions about your privacy, contact us at the address below.
+
+## 10. Changes to this policy
+
+We may update this policy when the app changes. The "Last updated" date at the top shows the latest version. If a change affects how your information is handled, we will update the app's store listing and this screen.
+
+## 11. Contact
+
+[YOUR NAME OR COMPANY]
+Email: [YOUR EMAIL]

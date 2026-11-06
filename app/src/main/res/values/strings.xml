@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Change this to rename the app everywhere. -->
+    <string name="app_name">Sonara</string>
+    <string name="app_tagline">Your music, your way.</string>
+</resources>

@@ -1,0 +1,54 @@
+# Terms of Use
+
+Last updated: [DATE]
+
+These terms apply to your use of Sonara ("the app"), provided by [YOUR NAME OR COMPANY] ("we", "us"). By installing or using the app you agree to these terms. If you do not agree, please do not use the app.
+
+## 1. What the app does
+
+Sonara is a music player. It plays audio files that are stored on your device and streams free, Creative Commons-licensed music supplied by Jamendo.
+
+## 2. License to use the app
+
+We give you a personal, non-exclusive, non-transferable, revocable license to install and use the app on your devices for your own non-commercial use, subject to these terms.
+
+## 3. Your music and your responsibility
+
+You may only play, copy or share audio that you have the legal right to use. You are responsible for the files on your device and for how you use them. We do not host, upload or review your files.
+
+## 4. Online music (Jamendo)
+
+Tracks streamed from Jamendo are provided by independent artists under Creative Commons licenses chosen by each artist. These licenses may restrict commercial use, require credit to the artist, or limit changes. To see the license for a track, open its menu and choose License and credits. Use of Jamendo's service is also subject to Jamendo's own terms. We are not the owner or publisher of this music and are not responsible for its content or availability.
+
+## 5. What you may not do
+
+You may not copy, modify, reverse engineer or resell the app, remove its notices, use it to break the law, or use it in a way that harms the app, other people or the services it connects to. You may not use the app to download or redistribute music in ways that its license does not allow.
+
+## 6. Availability and changes
+
+We may update, change or stop the app, or parts of it, at any time. Online features depend on third-party services and an internet connection and may be unavailable or change without notice.
+
+## 7. No warranty
+
+The app is provided "as is" and "as available", without warranties of any kind, to the extent allowed by law. We do not promise that the app will be error-free, uninterrupted, or that it will work with every device or audio file.
+
+## 8. Limit of liability
+
+To the extent allowed by law, we are not liable for indirect or consequential losses, loss of data, or damage arising from your use of the app. Nothing in these terms limits liability that cannot be limited by law.
+
+## 9. Ending these terms
+
+You can stop using the app at any time by uninstalling it. We may end your license if you break these terms.
+
+## 10. Changes to these terms
+
+We may update these terms. The "Last updated" date shows the latest version. Continuing to use the app after an update means you accept the new terms.
+
+## 11. Governing law
+
+These terms are governed by the laws of [YOUR COUNTRY OR STATE], without regard to its conflict-of-law rules.
+
+## 12. Contact
+
+[YOUR NAME OR COMPANY]
+Email: [YOUR EMAIL]

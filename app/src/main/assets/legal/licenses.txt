@@ -1,0 +1,29 @@
+# Licenses and credits
+
+Sonara is built with the help of free and open-source software and free music. Thank you to everyone who makes these possible.
+
+## Music
+
+Free music is provided by Jamendo (jamendo.com). Each track is shared by its artist under a Creative Commons license. Open a track's menu and choose License and credits to see the exact license for that track.
+
+## Lyrics
+
+If you turn on Lyrics, time-synced lyrics are looked up on LRCLIB (lrclib.net), a free community lyrics database. Lyrics remain the property of their respective writers and publishers and are shown here for personal reading.
+
+## Open-source software
+
+The Android Open Source Project, Jetpack Compose, Material 3, Navigation, Lifecycle, DataStore and AndroidX libraries: Copyright The Android Open Source Project. Licensed under the Apache License, Version 2.0.
+
+Media3 (ExoPlayer and MediaSession): Copyright The Android Open Source Project. Licensed under the Apache License, Version 2.0.
+
+Coil (image loading): Copyright Coil Contributors. Licensed under the Apache License, Version 2.0.
+
+Kotlin and kotlinx.coroutines: Copyright JetBrains s.r.o. and Kotlin Programming Language contributors. Licensed under the Apache License, Version 2.0.
+
+Material Icons: Copyright Google LLC. Licensed under the Apache License, Version 2.0.
+
+## Apache License, Version 2.0
+
+You may obtain a copy of the license at http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the license is distributed on an "AS IS" basis, without warranties or conditions of any kind, either express or implied. See the license for the specific language governing permissions and limitations.

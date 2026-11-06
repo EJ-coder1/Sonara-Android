@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512" role="img" aria-label="Sonara logo">
+  <defs>
+    <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="12" y1="0" x2="96" y2="108">
+      <stop offset="0" stop-color="#4C1D95"/>
+      <stop offset="0.55" stop-color="#7C3AED"/>
+      <stop offset="1" stop-color="#EC4899"/>
+    </linearGradient>
+  </defs>
+  <rect width="108" height="108" rx="30" fill="url(#g)"/>
+  <path d="M66.8,38 C66.8,31 60.8,28 54,28 C46.4,28 41.1,32 41.1,39 C41.1,48 48,50 54,52 C60.8,54 67.6,57 67.6,66 C67.6,74 61.7,79 54,79 C46.4,79 41.1,75 40.4,68"
+        fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M27,46 V62" stroke="#fff" stroke-opacity="0.8" stroke-width="5" stroke-linecap="round"/>
+  <path d="M81,46 V62" stroke="#fff" stroke-opacity="0.8" stroke-width="5" stroke-linecap="round"/>
+</svg>
