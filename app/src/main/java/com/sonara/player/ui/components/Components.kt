@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material3.Button
@@ -65,7 +66,10 @@ import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.sonara.player.R
+import com.sonara.player.data.OfflinePrefs
 import com.sonara.player.data.Track
+import com.sonara.player.data.downloads.DownloadsManager
+import com.sonara.player.data.downloads.EnqueueResult
 import com.sonara.player.data.UiPrefs
 import com.sonara.player.playback.AudioEffectsManager
 import com.sonara.player.playback.PlayerController
@@ -86,6 +90,15 @@ val LocalUiPrefs = staticCompositionLocalOf { UiPrefs() }
 
 /** Equalizer / bass / loudness controls. */
 val LocalFx = staticCompositionLocalOf<AudioEffectsManager> { error("AudioEffectsManager not provided") }
+
+/** Downloads (start, remove, progress). */
+val LocalDownloads = staticCompositionLocalOf<DownloadsManager> { error("DownloadsManager not provided") }
+
+/** Ids of songs that are fully downloaded; rows use it to show the offline badge. */
+val LocalDownloadedIds = staticCompositionLocalOf<Set<String>> { emptySet() }
+
+/** Download, play cache and resume options. */
+val LocalOfflinePrefs = staticCompositionLocalOf { OfflinePrefs() }
 
 /** Opens the "more options" sheet for a track. */
 val LocalTrackMenu = staticCompositionLocalOf<(Track) -> Unit> { {} }
@@ -247,6 +260,14 @@ fun TrackRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (track.id in LocalDownloadedIds.current) {
+            Icon(
+                Icons.Rounded.DownloadDone,
+                contentDescription = "Downloaded",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 6.dp).size(18.dp),
             )
         }
         if (track.durationMs > 0) {
@@ -438,4 +459,15 @@ fun PrimaryPillButton(
         Spacer(Modifier.width(8.dp))
         Text(text, style = MaterialTheme.typography.labelLarge)
     }
+}
+
+
+/** The snackbar text for the result of a download request. */
+fun downloadMessage(title: String, result: EnqueueResult, wifiOnly: Boolean): String = when (result) {
+    EnqueueResult.STARTED ->
+        if (wifiOnly) "Downloading \"$title\" (starts on Wi-Fi)" else "Downloading \"$title\""
+    EnqueueResult.ALREADY -> "\"$title\" is already downloaded or downloading"
+    EnqueueResult.NOT_ALLOWED -> "The artist hasn't allowed downloads for this song"
+    EnqueueResult.NO_STORAGE -> "No storage is available for downloads"
+    EnqueueResult.FAILED -> "Couldn't start the download"
 }

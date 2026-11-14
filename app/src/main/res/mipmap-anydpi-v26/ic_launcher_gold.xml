@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Gold launcher icon (generated). Layers are inline so this icon is a single file. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <background>
+        <vector
+            android:width="108dp"
+            android:height="108dp"
+            android:viewportWidth="108"
+            android:viewportHeight="108">
+            <path
+                android:fillColor="#FF0B0B0F"
+                android:pathData="M0,0h108v108h-108z" />
+        </vector>
+    </background>
+    <foreground>
+        <vector
+            android:width="108dp"
+            android:height="108dp"
+            android:viewportWidth="108"
+            android:viewportHeight="108">
+            <path
+                android:pathData="M66.8,38 C66.8,31 60.8,28 54,28 C46.4,28 41.1,32 41.1,39 C41.1,48 48,50 54,52 C60.8,54 67.6,57 67.6,66 C67.6,74 61.7,79 54,79 C46.4,79 41.1,75 40.4,68"
+                android:strokeWidth="9"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round">
+                <aapt:attr name="android:strokeColor">
+                  <gradient android:startX="40" android:startY="28" android:endX="69" android:endY="80" android:type="linear">
+                    <item android:color="#FFFDE68A" android:offset="0" />
+                    <item android:color="#FFF59E0B" android:offset="0.5" />
+                    <item android:color="#FFB45309" android:offset="1" />
+                  </gradient>
+                </aapt:attr>
+            </path>
+            <path
+                android:pathData="M27,46 L27,62"
+                android:strokeWidth="5"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                android:strokeColor="#CCF59E0B" />
+            <path
+                android:pathData="M81,46 L81,62"
+                android:strokeWidth="5"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                android:strokeColor="#CCF59E0B" />
+        </vector>
+    </foreground>
+    <monochrome>
+        <vector
+            android:width="108dp"
+            android:height="108dp"
+            android:viewportWidth="108"
+            android:viewportHeight="108">
+            <path
+                android:pathData="M66.8,38 C66.8,31 60.8,28 54,28 C46.4,28 41.1,32 41.1,39 C41.1,48 48,50 54,52 C60.8,54 67.6,57 67.6,66 C67.6,74 61.7,79 54,79 C46.4,79 41.1,75 40.4,68"
+                android:strokeWidth="9"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                android:strokeColor="#FF000000" />
+            <path
+                android:pathData="M27,46 L27,62"
+                android:strokeWidth="5"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                android:strokeColor="#FF000000" />
+            <path
+                android:pathData="M81,46 L81,62"
+                android:strokeWidth="5"
+                android:strokeLineCap="round"
+                android:strokeLineJoin="round"
+                android:strokeColor="#FF000000" />
+        </vector>
+    </monochrome>
+</adaptive-icon>

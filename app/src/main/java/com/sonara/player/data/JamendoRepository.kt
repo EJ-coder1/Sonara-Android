@@ -29,6 +29,10 @@ class JamendoRepository(private val clientId: String) {
     suspend fun search(text: String, limit: Int = 30) =
         query(limit, "search" to text) // default order = relevance
 
+    /** Looks one song up again (used to find its download address when we don't have it yet). */
+    suspend fun trackById(jamendoId: String): Result<Track?> =
+        query(1, "id" to jamendoId).map { it.firstOrNull() }
+
     private suspend fun query(
         limit: Int,
         vararg extra: Pair<String, String>,
@@ -50,6 +54,7 @@ class JamendoRepository(private val clientId: String) {
             "limit" to limit.toString(),
             "imagesize" to "600",
             "audioformat" to "mp31",
+            "audiodlformat" to "mp32", // format of the downloadable file (high quality MP3)
         )
         extra.forEach { params[it.first] = it.second }
         val qs = params.entries.joinToString("&") { "${enc(it.key)}=${enc(it.value)}" }
@@ -83,6 +88,10 @@ class JamendoRepository(private val clientId: String) {
             val id = o.optString("id", "")
             if (audio.isBlank() || id.isBlank()) continue
             val image = o.optString("image", "").ifBlank { o.optString("album_image", "") }
+            // Downloads are only offered when the artist allows them.
+            val downloadUrl = if (o.optBoolean("audiodownload_allowed", false)) {
+                o.optString("audiodownload", "").ifBlank { null }?.replace("http://", "https://")
+            } else null
             out += Track(
                 id = "jam:$id",
                 title = o.optString("name", "Untitled"),
@@ -94,6 +103,7 @@ class JamendoRepository(private val clientId: String) {
                 source = TrackSource.ONLINE,
                 licenseUrl = o.optString("license_ccurl", "").ifBlank { null },
                 shareUrl = o.optString("shareurl", "").ifBlank { null },
+                downloadUrl = downloadUrl,
             )
         }
         return out

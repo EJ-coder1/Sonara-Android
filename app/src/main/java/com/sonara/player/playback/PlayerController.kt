@@ -11,6 +11,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import com.sonara.player.data.SessionSnapshot
 import com.sonara.player.data.Track
 import com.sonara.player.data.toMediaItem
 import com.sonara.player.data.toTrackOrNull
@@ -72,6 +73,12 @@ class PlayerController(context: Context) {
 
     /** Called once each time a new track begins (used for "Recently played"). */
     var onTrackStarted: ((Track) -> Unit)? = null
+
+    /**
+     * Swaps a song for its downloaded copy when there is one (set by the app container),
+     * so downloaded songs play from the phone and use no data.
+     */
+    var trackResolver: (Track) -> Track = { it }
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
@@ -208,7 +215,8 @@ class PlayerController(context: Context) {
     fun playQueue(tracks: List<Track>, startIndex: Int = 0, shuffle: Boolean? = null) {
         if (tracks.isEmpty()) return
         val start = if (shuffle == true) Random.nextInt(tracks.size) else startIndex.coerceIn(0, tracks.lastIndex)
-        val (list, idx) = window(tracks, start)
+        val (rawList, idx) = window(tracks, start)
+        val list = rawList.map(trackResolver)
         withController { c ->
             queue = list
             if (shuffle != null) c.shuffleModeEnabled = shuffle
@@ -222,26 +230,47 @@ class PlayerController(context: Context) {
     fun playTrack(track: Track) = playQueue(listOf(track), 0)
 
     fun playNext(track: Track) {
+        val item = trackResolver(track)
         withController { c ->
             if (c.mediaItemCount == 0) {
                 playQueue(listOf(track))
                 return@withController
             }
             val at = (c.currentMediaItemIndex + 1).coerceIn(0, queue.size)
-            queue = queue.toMutableList().apply { add(at, track) }
-            c.addMediaItem(at, track.toMediaItem())
+            queue = queue.toMutableList().apply { add(at, item) }
+            c.addMediaItem(at, item.toMediaItem())
             sync()
         }
     }
 
     fun addToQueue(track: Track) {
+        val item = trackResolver(track)
         withController { c ->
             if (c.mediaItemCount == 0) {
                 playQueue(listOf(track))
                 return@withController
             }
-            queue = queue + track
-            c.addMediaItem(track.toMediaItem())
+            queue = queue + item
+            c.addMediaItem(item.toMediaItem())
+            sync()
+        }
+    }
+
+    /**
+     * Puts the last session back (queue, song, position) WITHOUT starting playback.
+     * Does nothing if something is already loaded, for example the service is still playing.
+     */
+    fun restoreSession(snapshot: SessionSnapshot) {
+        val tracks = snapshot.tracks.map(trackResolver)
+        if (tracks.isEmpty()) return
+        val index = snapshot.index.coerceIn(0, tracks.lastIndex)
+        withController { c ->
+            if (c.mediaItemCount > 0) return@withController
+            queue = tracks
+            lastRecordedId = tracks[index].id // restoring is not "playing", so don't add it to Recently played again
+            c.shuffleModeEnabled = snapshot.shuffle
+            c.repeatMode = snapshot.repeatMode
+            c.setMediaItems(tracks.map { it.toMediaItem() }, index, snapshot.positionMs.coerceAtLeast(0L))
             sync()
         }
     }

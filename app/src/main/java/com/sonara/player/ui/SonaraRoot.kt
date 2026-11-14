@@ -63,6 +63,9 @@ import com.sonara.player.data.Track
 import com.sonara.player.playback.PlayerController
 import com.sonara.player.playback.PlayerUiState
 import com.sonara.player.ui.components.LocalFx
+import com.sonara.player.ui.components.LocalDownloadedIds
+import com.sonara.player.ui.components.LocalDownloads
+import com.sonara.player.ui.components.LocalOfflinePrefs
 import com.sonara.player.ui.components.LocalMessage
 import com.sonara.player.ui.components.LocalPlayer
 import com.sonara.player.ui.components.LocalRequestAudioAccess
@@ -76,6 +79,7 @@ import com.sonara.player.ui.player.MiniPlayer
 import com.sonara.player.ui.player.NowPlayingScreen
 import com.sonara.player.ui.player.TrackDetailsDialog
 import com.sonara.player.ui.search.SearchScreen
+import com.sonara.player.ui.settings.AppIconScreen
 import com.sonara.player.ui.settings.LegalScreen
 import com.sonara.player.ui.settings.SettingsScreen
 import com.sonara.player.ui.settings.WelcomeScreen
@@ -87,6 +91,7 @@ private const val ROUTE_HOME = "home"
 private const val ROUTE_SEARCH = "search"
 private const val ROUTE_LIBRARY = "library"
 private const val ROUTE_SETTINGS = "settings"
+private const val ROUTE_APP_ICONS = "appicons"
 
 private fun audioPermission(): String =
     if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO
@@ -125,6 +130,9 @@ fun SonaraRoot(appVm: AppViewModel, player: PlayerController) {
     val uiPrefs by appVm.uiPrefs.collectAsStateWithLifecycle()
     val batteryHintShown by appVm.batteryHintShown.collectAsStateWithLifecycle()
     val fx = remember { (context.applicationContext as SonaraApp).container.fx }
+    val downloads = remember { (context.applicationContext as SonaraApp).container.downloads }
+    val downloadedIds by downloads.downloadedIds.collectAsStateWithLifecycle()
+    val offlinePrefs by appVm.offlinePrefs.collectAsStateWithLifecycle()
 
     var nowPlayingOpen by rememberSaveable { mutableStateOf(false) }
     var menuTrack by remember { mutableStateOf<Track?>(null) }
@@ -190,6 +198,9 @@ fun SonaraRoot(appVm: AppViewModel, player: PlayerController) {
         LocalMessage provides showMessage,
         LocalRequestAudioAccess provides requestAudioAccess,
         LocalFx provides fx,
+        LocalDownloads provides downloads,
+        LocalDownloadedIds provides downloadedIds,
+        LocalOfflinePrefs provides offlinePrefs,
         LocalUiPrefs provides uiPrefs,
     ) {
         Box(
@@ -361,6 +372,13 @@ private fun MainContent(
                         appVm = appVm,
                         onBack = { nav.popBackStack() },
                         onOpenLegal = { doc -> nav.navigate("legal/$doc") },
+                        onOpenAppIcons = { nav.navigate(ROUTE_APP_ICONS) },
+                    )
+                }
+                composable(ROUTE_APP_ICONS) {
+                    AppIconScreen(
+                        padding = inner,
+                        onBack = { nav.popBackStack() },
                     )
                 }
                 composable("legal/{doc}") { backStackEntry ->

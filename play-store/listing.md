@@ -28,6 +28,10 @@ MADE FOR LISTENING
 - Keeps playing when the screen is off, with controls in your notification and on the lock screen.
 - Works with Bluetooth and headphone buttons.
 - Light, dark and wallpaper-color themes.
+- 16 app icons to choose from.
+- Download songs for offline listening where the artist allows it.
+- Songs you stream are saved on your phone, so playing them again uses no data.
+- Pick up exactly where you left off.
 
 PRIVATE BY DESIGN
 - No account and no ads.

@@ -38,6 +38,16 @@ data class UiPrefs(
     val lyricsOffsetMs: Int = 0,
 )
 
+/** Downloads, play cache and resume options, saved on the phone. */
+data class OfflinePrefs(
+    /** How much room the play cache may use, in megabytes. */
+    val cacheLimitMb: Int = 512,
+    /** Only start downloads on Wi-Fi (or another unmetered connection). */
+    val wifiOnlyDownloads: Boolean = true,
+    /** Reopen the last queue and song (paused) when Sonara starts. */
+    val resumeSession: Boolean = true,
+)
+
 /**
  * Everything the user creates lives only on their device:
  * favorites, recently played, playlists and settings. No account, no cloud.
@@ -60,6 +70,11 @@ class LibraryStore(context: Context) {
     private val keyLyricsOffset = intPreferencesKey("lyrics_offset_ms")
     private val keyFx = stringPreferencesKey("audio_fx")
     private val keyBatteryHint = booleanPreferencesKey("battery_hint_shown")
+    private val keyCacheLimit = intPreferencesKey("cache_limit_mb")
+    private val keyWifiOnly = booleanPreferencesKey("downloads_wifi_only")
+    private val keyResume = booleanPreferencesKey("resume_session")
+    private val keyDownloads = stringPreferencesKey("downloads")
+    private val keySession = stringPreferencesKey("session")
 
     val favorites: Flow<List<Track>> = ds.data.map { parseTracks(it[keyFavorites]) }
     val recents: Flow<List<Track>> = ds.data.map { parseTracks(it[keyRecents]) }
@@ -84,6 +99,15 @@ class LibraryStore(context: Context) {
     }
     val fx: Flow<FxSaved> = ds.data.map { FxSaved.decode(it[keyFx]) }
     val batteryHintShown: Flow<Boolean> = ds.data.map { it[keyBatteryHint] ?: false }
+    val offlinePrefs: Flow<OfflinePrefs> = ds.data.map { p ->
+        OfflinePrefs(
+            cacheLimitMb = (p[keyCacheLimit] ?: 512).coerceIn(64, 8192),
+            wifiOnlyDownloads = p[keyWifiOnly] ?: true,
+            resumeSession = p[keyResume] ?: true,
+        )
+    }
+    val downloadRecords: Flow<List<DownloadRecord>> = ds.data.map { DownloadRecordCodec.decode(it[keyDownloads]) }
+    val session: Flow<SessionSnapshot?> = ds.data.map { SessionCodec.decode(it[keySession]) }
 
     suspend fun toggleFavorite(track: Track) {
         ds.edit { p ->
@@ -160,6 +184,18 @@ class LibraryStore(context: Context) {
     suspend fun setLyricsOffset(ms: Int) { ds.edit { it[keyLyricsOffset] = ms.coerceIn(-5000, 5000) } }
     suspend fun setFx(fx: FxSaved) { ds.edit { it[keyFx] = fx.encode() } }
     suspend fun setBatteryHintShown() { ds.edit { it[keyBatteryHint] = true } }
+    suspend fun setCacheLimitMb(mb: Int) { ds.edit { it[keyCacheLimit] = mb.coerceIn(64, 8192) } }
+    suspend fun setWifiOnlyDownloads(on: Boolean) { ds.edit { it[keyWifiOnly] = on } }
+    suspend fun setResumeSession(on: Boolean) { ds.edit { it[keyResume] = on } }
+
+    // ----- downloads and resume -----
+
+    suspend fun updateDownloads(transform: (List<DownloadRecord>) -> List<DownloadRecord>) {
+        ds.edit { p -> p[keyDownloads] = DownloadRecordCodec.encode(transform(DownloadRecordCodec.decode(p[keyDownloads]))) }
+    }
+
+    suspend fun saveSession(snapshot: SessionSnapshot) { ds.edit { it[keySession] = SessionCodec.encode(snapshot) } }
+    suspend fun clearSession() { ds.edit { it.remove(keySession) } }
 
     /** Wipes everything the app saved (used by Settings > Delete my data). */
     suspend fun clearAll() { ds.edit { it.clear() } }

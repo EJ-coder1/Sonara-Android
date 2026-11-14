@@ -22,6 +22,8 @@ data class Track(
     val licenseUrl: String? = null,
     val shareUrl: String? = null,
     val addedAt: Long = 0L,
+    /** Where an online song can be downloaded from. Null when the artist has not allowed downloads (or it is not known yet). */
+    val downloadUrl: String? = null,
 ) {
     val isOnline: Boolean get() = source == TrackSource.ONLINE
 }
@@ -38,6 +40,7 @@ private const val X_ART = "sonara.art"
 private const val X_LICENSE = "sonara.license"
 private const val X_SHARE = "sonara.share"
 private const val X_ADDED = "sonara.added"
+private const val X_DOWNLOAD = "sonara.download"
 
 /**
  * Everything the player and the notification need travels inside the MediaItem, so the UI can
@@ -51,6 +54,7 @@ fun Track.toMediaItem(): MediaItem {
         licenseUrl?.let { putString(X_LICENSE, it) }
         shareUrl?.let { putString(X_SHARE, it) }
         putLong(X_ADDED, addedAt)
+        downloadUrl?.let { putString(X_DOWNLOAD, it) }
     }
     val meta = MediaMetadata.Builder()
         .setTitle(title)
@@ -64,11 +68,27 @@ fun Track.toMediaItem(): MediaItem {
     // because the old "albumart" address stopped working on Android 10+.
     val art = if (source == TrackSource.LOCAL) uri else artworkUri
     art?.let { meta.setArtworkUri(Uri.parse(it)) }
-    return MediaItem.Builder()
+    val builder = MediaItem.Builder()
         .setMediaId(id)
         .setUri(uri)
         .setMediaMetadata(meta.build())
-        .build()
+    // Streamed songs are saved in the play cache under this key, so listening again needs no data.
+    cacheKey()?.let { builder.setCustomCacheKey(it) }
+    return builder.build()
+}
+
+/**
+ * Stable key for the play cache. The stream address can carry parameters that change between
+ * sessions, so the key is the song id plus the audio format. Null for songs on the phone.
+ */
+fun Track.cacheKey(): String? {
+    if (!isOnline) return null
+    val format = try {
+        Uri.parse(uri).getQueryParameter("format").orEmpty()
+    } catch (e: Exception) {
+        ""
+    }
+    return "$id:$format"
 }
 
 /** Rebuilds a [Track] from a MediaItem made by [toMediaItem]. Null for items from elsewhere. */
@@ -87,6 +107,7 @@ fun MediaItem.toTrackOrNull(): Track? {
         licenseUrl = x.getString(X_LICENSE),
         shareUrl = x.getString(X_SHARE),
         addedAt = x.getLong(X_ADDED, 0L),
+        downloadUrl = x.getString(X_DOWNLOAD),
     )
 }
 
@@ -104,6 +125,7 @@ fun Track.toJson(): JSONObject = JSONObject().apply {
     if (licenseUrl != null) put("lic", licenseUrl)
     if (shareUrl != null) put("share", shareUrl)
     put("added", addedAt)
+    if (downloadUrl != null) put("dl", downloadUrl)
 }
 
 fun JSONObject.toTrack(): Track? = try {
@@ -119,6 +141,7 @@ fun JSONObject.toTrack(): Track? = try {
         licenseUrl = optString("lic", "").ifBlank { null },
         shareUrl = optString("share", "").ifBlank { null },
         addedAt = optLong("added", 0L),
+        downloadUrl = optString("dl", "").ifBlank { null },
     )
 } catch (e: Exception) {
     null

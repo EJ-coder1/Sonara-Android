@@ -51,3 +51,8 @@ Work top to bottom. Items marked (you) need your own information or accounts; I 
 - [ ] Watch Play Console > Quality > Crashes and ANRs.
 - [ ] Every year Google raises the required target API level. Update `compileSdk` and `targetSdk` (now 36) and rebuild before the deadline.
 - [ ] Keep `licenses.txt` and the privacy policy up to date whenever you add a library or a feature that touches data.
+
+## H. Added in this version (re-check before you publish)
+- [ ] Data safety form: downloads and the play cache stay on the device and nothing new is collected, but audio now comes from Jamendo in more ways (streaming, downloads). Your existing Jamendo/LRCLIB answers still apply.
+- [ ] Each downloaded song is covered by its artist's Creative Commons license. Keep the in-app license and credits screen and the privacy policy / terms in sync with `docs/`.
+- [ ] Multiple launcher icons are fine on Google Play (they are aliases of one activity). Use the default icon (Aurora) for the store listing.

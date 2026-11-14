@@ -6,11 +6,14 @@ import androidx.lifecycle.viewModelScope
 import com.sonara.player.SonaraApp
 import com.sonara.player.data.Accent
 import com.sonara.player.data.MixBuilder
+import com.sonara.player.data.OfflinePrefs
 import com.sonara.player.data.Playlist
 import com.sonara.player.data.ThemeMode
 import com.sonara.player.data.Track
 import com.sonara.player.data.UiPrefs
+import com.sonara.player.playback.PlayCache
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -22,6 +25,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -73,6 +77,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val uiPrefs: StateFlow<UiPrefs> =
         store.uiPrefs.stateIn(viewModelScope, SharingStarted.Eagerly, UiPrefs())
     /** null until loaded. */
+    val offlinePrefs: StateFlow<OfflinePrefs> =
+        store.offlinePrefs.stateIn(viewModelScope, SharingStarted.Eagerly, OfflinePrefs())
+
     val batteryHintShown: StateFlow<Boolean?> =
         store.batteryHintShown.map<Boolean, Boolean?> { it }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -130,6 +137,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setLyricsScale(percent: Int) = viewModelScope.launch { store.setLyricsScale(percent) }
     fun setLyricsOffset(ms: Int) = viewModelScope.launch { store.setLyricsOffset(ms) }
     fun markBatteryHintShown() = viewModelScope.launch { store.setBatteryHintShown() }
+
+    fun setCacheLimitMb(mb: Int) = viewModelScope.launch { store.setCacheLimitMb(mb) }
+    fun setWifiOnlyDownloads(on: Boolean) = viewModelScope.launch { store.setWifiOnlyDownloads(on) }
+    fun setResumeSession(on: Boolean) = viewModelScope.launch {
+        store.setResumeSession(on)
+        if (!on) store.clearSession()
+    }
+
+    /** Deletes every song saved by the play cache. */
+    fun clearPlayCache(done: () -> Unit) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { PlayCache.clear(getApplication<Application>()) }
+            done()
+        }
+    }
     fun clearLyricsCache() = container.lyrics.clearCache()
 
     fun requestSearch(text: String) { _searchRequest.value = text }
@@ -152,6 +174,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun finishOnboarding() = viewModelScope.launch { store.setOnboardingDone() }
     fun deleteAllData(done: () -> Unit) {
         viewModelScope.launch {
+            container.downloads.removeAll()
+            withContext(Dispatchers.IO) { PlayCache.clear(getApplication<Application>()) }
             store.clearAll()
             // clearAll() also resets onboarding; keep the user in the app instead of replaying the welcome screen.
             store.setOnboardingDone()

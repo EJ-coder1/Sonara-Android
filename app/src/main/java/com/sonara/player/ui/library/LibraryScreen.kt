@@ -57,6 +57,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.unit.Dp
+import com.sonara.player.data.downloads.DownloadItem
+import com.sonara.player.data.downloads.DownloadStatus
+import com.sonara.player.data.downloads.EnqueueResult
+import com.sonara.player.ui.components.LocalDownloadedIds
+import com.sonara.player.ui.components.LocalDownloads
+import com.sonara.player.ui.components.LocalOfflinePrefs
+import com.sonara.player.ui.components.Artwork
+import com.sonara.player.util.formatBytes
 import com.sonara.player.data.Track
 import com.sonara.player.ui.AppViewModel
 import com.sonara.player.ui.SongsState
@@ -81,7 +93,7 @@ fun LibraryScreen(
 
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var showNewPlaylist by remember { mutableStateOf(false) }
-    val tabs = listOf("Songs", "Liked", "Playlists")
+    val tabs = listOf("Songs", "Liked", "Playlists", "Downloads")
 
     Column(
         Modifier
@@ -147,8 +159,9 @@ fun LibraryScreen(
                 currentId = playerState.current?.id,
                 bottom = listBottom,
                 showShuffleBar = true,
+                onDownloadAll = rememberDownloadAll(favorites),
             )
-            else -> LazyColumn(contentPadding = PaddingValues(bottom = listBottom)) {
+            2 -> LazyColumn(contentPadding = PaddingValues(bottom = listBottom)) {
                 item(key = "new") {
                     FilledTonalButton(
                         onClick = { showNewPlaylist = true },
@@ -200,6 +213,7 @@ fun LibraryScreen(
                     }
                 }
             }
+            else -> DownloadsTab(bottom = listBottom, currentId = playerState.current?.id)
         }
     }
 
@@ -227,6 +241,8 @@ fun TrackList(
     showShuffleBar: Boolean,
     modifier: Modifier = Modifier,
     header: (@Composable () -> Unit)? = null,
+    /** When set, a download button is shown (online songs that can still be downloaded). */
+    onDownloadAll: (() -> Unit)? = null,
     trailing: ((Track) -> (@Composable () -> Unit))? = null,
 ) {
     val player = LocalPlayer.current
@@ -248,6 +264,11 @@ fun TrackList(
                         Icon(Icons.Rounded.Shuffle, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(6.dp))
                         Text("Shuffle")
+                    }
+                    if (onDownloadAll != null) {
+                        IconButton(onClick = onDownloadAll) {
+                            Icon(Icons.Rounded.Download, contentDescription = "Download the online songs in this list")
+                        }
                     }
                     Spacer(Modifier.weight(1f))
                     Text(
@@ -379,6 +400,7 @@ fun PlaylistDetailScreen(
                 currentId = playerState.current?.id,
                 bottom = padding.calculateBottomPadding() + 24.dp,
                 showShuffleBar = true,
+                onDownloadAll = rememberDownloadAll(tracks),
                 trailing = { track ->
                     {
                         IconButton(onClick = {
@@ -424,3 +446,171 @@ fun PlaylistDetailScreen(
 }
 
 const val FAVORITES_ID = "favorites"
+
+
+/** A "download all" action for [tracks], or null when there is nothing online left to download. */
+@Composable
+fun rememberDownloadAll(tracks: List<Track>): (() -> Unit)? {
+    val downloads = LocalDownloads.current
+    val downloaded = LocalDownloadedIds.current
+    val message = LocalMessage.current
+    val wifiOnly = LocalOfflinePrefs.current.wifiOnlyDownloads
+    val todo = tracks.filter { it.isOnline && it.id !in downloaded }
+    if (todo.isEmpty()) return null
+    return {
+        var pending = todo.size
+        var started = 0
+        var refused = 0
+        todo.forEach { track ->
+            downloads.request(track) { result ->
+                if (result == EnqueueResult.STARTED) started++
+                if (result == EnqueueResult.NOT_ALLOWED) refused++
+                pending--
+                if (pending == 0) {
+                    message(
+                        when {
+                            started > 0 && refused > 0 -> "Downloading $started songs. $refused aren't allowed by their artists."
+                            started > 0 -> "Downloading $started " + (if (started == 1) "song" else "songs") + (if (wifiOnly) " (starts on Wi-Fi)" else "")
+                            refused > 0 -> "The artists haven't allowed downloads for these songs"
+                            else -> "Nothing new to download"
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DownloadsTab(bottom: Dp, currentId: String?) {
+    val downloads = LocalDownloads.current
+    val player = LocalPlayer.current
+    val message = LocalMessage.current
+    val items by downloads.items.collectAsStateWithLifecycle()
+    val disk by downloads.diskBytes.collectAsStateWithLifecycle()
+    val done = items.filter { it.status == DownloadStatus.DONE }.map { it.track }
+
+    if (items.isEmpty()) {
+        CenteredMessage {
+            MessageCard(
+                "No downloads yet. Open the menu of an online song and choose Download for offline.",
+                icon = Icons.Rounded.Download,
+            )
+        }
+        return
+    }
+
+    LazyColumn(contentPadding = PaddingValues(bottom = bottom)) {
+        item(key = "summary") {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (done.isNotEmpty()) {
+                    Button(onClick = { player.playQueue(done, 0, shuffle = false) }) {
+                        Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Play")
+                    }
+                }
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "${done.size} saved, ${formatBytes(disk)}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        items(items, key = { it.track.id }) { item ->
+            DownloadRow(
+                item = item,
+                isCurrent = currentId == item.track.id,
+                onClick = {
+                    if (item.status == DownloadStatus.DONE) {
+                        player.playQueue(done, done.indexOfFirst { it.id == item.track.id }.coerceAtLeast(0))
+                    } else {
+                        message("This song isn't downloaded yet")
+                    }
+                },
+                onRemove = {
+                    downloads.remove(item.track.id)
+                    message(if (item.status == DownloadStatus.DONE) "Download removed" else "Download cancelled")
+                },
+                onRetry = { downloads.request(item.track) { } },
+            )
+        }
+    }
+}
+
+@Composable
+private fun DownloadRow(
+    item: DownloadItem,
+    isCurrent: Boolean,
+    onClick: () -> Unit,
+    onRemove: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Artwork(item.track, Modifier.size(52.dp), corner = 10.dp, sizePx = 128)
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                item.track.title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            when (item.status) {
+                DownloadStatus.DONE -> Text(
+                    "Saved on this phone, ${formatBytes(item.bytes)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                DownloadStatus.RUNNING -> {
+                    if (item.totalBytes > 0L) {
+                        LinearProgressIndicator(
+                            progress = { item.progress },
+                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp, end = 12.dp),
+                        )
+                    } else {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp, end = 12.dp))
+                    }
+                    Text(
+                        if (item.totalBytes > 0L) "Downloading, " + (item.progress * 100).toInt() + "%" else "Downloading",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                DownloadStatus.QUEUED -> Text(
+                    "Waiting to start",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                DownloadStatus.FAILED -> Text(
+                    "Download failed",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+        if (item.status == DownloadStatus.FAILED) {
+            TextButton(onClick = onRetry) { Text("Retry") }
+        }
+        IconButton(onClick = onRemove) {
+            Icon(
+                Icons.Rounded.Delete,
+                contentDescription = if (item.status == DownloadStatus.DONE) "Delete the download of ${item.track.title}"
+                else "Cancel the download of ${item.track.title}",
+            )
+        }
+    }
+}

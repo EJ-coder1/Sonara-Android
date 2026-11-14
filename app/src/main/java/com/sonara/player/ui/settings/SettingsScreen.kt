@@ -53,9 +53,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonara.player.BuildConfig
 import com.sonara.player.data.Accent
+import com.sonara.player.data.AppIcon
 import com.sonara.player.data.ThemeMode
 import com.sonara.player.ui.player.AudioPlaybackSheet
 import com.sonara.player.ui.theme.accentColorScheme
+import androidx.compose.runtime.mutableLongStateOf
+import com.sonara.player.playback.PlayCache
+import com.sonara.player.ui.components.LocalDownloads
+import com.sonara.player.util.formatBytes
+import com.sonara.player.util.AppIconManager
 import com.sonara.player.util.BatteryOptimization
 import com.sonara.player.ui.AppViewModel
 import com.sonara.player.ui.components.LocalMessage
@@ -68,6 +74,7 @@ fun SettingsScreen(
     appVm: AppViewModel,
     onBack: () -> Unit,
     onOpenLegal: (String) -> Unit,
+    onOpenAppIcons: () -> Unit,
 ) {
     val context = LocalContext.current
     val message = LocalMessage.current
@@ -78,7 +85,19 @@ fun SettingsScreen(
     var showAudio by remember { mutableStateOf(false) }
     var batteryOk by remember { mutableStateOf(BatteryOptimization.isIgnoring(context)) }
     // Coming back from the system battery page: show the new status.
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { batteryOk = BatteryOptimization.isIgnoring(context) }
+    var appIcon by remember { mutableStateOf(AppIconManager.current(context)) }
+    val offline by appVm.offlinePrefs.collectAsStateWithLifecycle()
+    val downloads = LocalDownloads.current
+    val downloadItems by downloads.items.collectAsStateWithLifecycle()
+    val downloadBytes by downloads.diskBytes.collectAsStateWithLifecycle()
+    var cacheBytes by remember { mutableLongStateOf(PlayCache.usedBytes(context)) }
+    var showCacheLimit by remember { mutableStateOf(false) }
+    var confirmDeleteDownloads by remember { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        batteryOk = BatteryOptimization.isIgnoring(context)
+        appIcon = AppIconManager.current(context)
+        cacheBytes = PlayCache.usedBytes(context)
+    }
 
     Column(
         Modifier
@@ -138,6 +157,16 @@ fun SettingsScreen(
                 }
             }
 
+            item {
+                ListItem(
+                    headlineContent = { Text("App icon") },
+                    supportingContent = { Text("${appIcon.label}. Choose from ${AppIcon.entries.size} icons for your home screen.") },
+                    leadingContent = { AppIconPreview(appIcon, 44.dp) },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    modifier = Modifier.clickable(onClick = onOpenAppIcons),
+                )
+            }
+
             item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
             item { GroupTitle("Player") }
             item {
@@ -184,6 +213,50 @@ fun SettingsScreen(
                 ) {
                     if (!BatteryOptimization.openSettings(context)) message("Couldn't open the battery settings")
                 }
+            }
+
+            item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+            item { GroupTitle("Downloads and storage") }
+            item {
+                SwitchRow(
+                    "Download over Wi-Fi only",
+                    "Saves mobile data. Turn off to download on any connection.",
+                    offline.wifiOnlyDownloads,
+                ) { appVm.setWifiOnlyDownloads(it) }
+            }
+            item {
+                val saved = downloadItems.count { it.status == com.sonara.player.data.downloads.DownloadStatus.DONE }
+                SettingRow(
+                    "Downloaded songs",
+                    "$saved saved, ${formatBytes(downloadBytes)}. Manage them in Library, Downloads.",
+                ) { }
+            }
+            item {
+                SettingRow("Delete all downloads", "Removes the downloaded songs from this phone") {
+                    confirmDeleteDownloads = true
+                }
+            }
+            item {
+                SettingRow(
+                    "Play cache",
+                    "${formatBytes(cacheBytes)} used of ${cacheLimitLabel(offline.cacheLimitMb)}. " +
+                        "Songs you stream are kept, so playing them again uses no data.",
+                ) { showCacheLimit = true }
+            }
+            item {
+                SettingRow("Clear play cache", "Frees the space used by streamed songs") {
+                    appVm.clearPlayCache {
+                        cacheBytes = PlayCache.usedBytes(context)
+                        message("Play cache cleared")
+                    }
+                }
+            }
+            item {
+                SwitchRow(
+                    "Resume where I left off",
+                    "Open your last song and queue (paused) when Sonara starts",
+                    offline.resumeSession,
+                ) { appVm.setResumeSession(it) }
             }
 
             item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
@@ -249,6 +322,46 @@ fun SettingsScreen(
     }
 
     if (showAudio) AudioPlaybackSheet(onDismiss = { showAudio = false })
+
+    if (showCacheLimit) {
+        AlertDialog(
+            onDismissRequest = { showCacheLimit = false },
+            title = { Text("Play cache size") },
+            text = {
+                Column {
+                    Text(
+                        "When the cache is full, the songs you played longest ago are removed first.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    for (mb in CACHE_LIMITS_MB) {
+                        ThemeOption(cacheLimitLabel(mb), offline.cacheLimitMb == mb) {
+                            appVm.setCacheLimitMb(mb)
+                            showCacheLimit = false
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showCacheLimit = false }) { Text("Close") } },
+        )
+    }
+
+    if (confirmDeleteDownloads) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteDownloads = false },
+            title = { Text("Delete all downloads?") },
+            text = { Text("The downloaded songs are removed from this phone. You can download them again later.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDeleteDownloads = false
+                    downloads.removeAll()
+                    message("Downloads deleted")
+                }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { confirmDeleteDownloads = false }) { Text("Cancel") } },
+        )
+    }
 
     if (confirmDelete) {
         AlertDialog(
@@ -347,3 +460,7 @@ private fun SettingRow(title: String, subtitle: String?, onClick: () -> Unit) {
         )
     }
 }
+
+private val CACHE_LIMITS_MB = listOf(128, 256, 512, 1024, 2048)
+
+private fun cacheLimitLabel(mb: Int): String = if (mb >= 1024 && mb % 1024 == 0) "${mb / 1024} GB" else "$mb MB"

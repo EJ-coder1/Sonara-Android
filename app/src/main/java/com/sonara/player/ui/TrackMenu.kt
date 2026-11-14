@@ -29,6 +29,9 @@ import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Info
@@ -52,11 +55,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonara.player.data.Playlist
 import com.sonara.player.data.Track
+import com.sonara.player.data.downloads.DownloadStatus
 import com.sonara.player.ui.components.Artwork
+import com.sonara.player.ui.components.LocalDownloads
 import com.sonara.player.ui.components.LocalMessage
+import com.sonara.player.ui.components.LocalOfflinePrefs
 import com.sonara.player.ui.components.LocalPlayer
+import com.sonara.player.ui.components.downloadMessage
 import com.sonara.player.ui.library.NameDialog
 
 private fun openLink(context: Context, url: String, onFail: () -> Unit) {
@@ -147,6 +155,31 @@ fun TrackMenuSheet(
                 onToggleFavorite()
                 message(if (isFavorite) "Removed from liked songs" else "Added to liked songs")
                 onDismiss()
+            }
+            if (track.isOnline) {
+                val downloads = LocalDownloads.current
+                val wifiOnly = LocalOfflinePrefs.current.wifiOnlyDownloads
+                val downloadItems by downloads.items.collectAsStateWithLifecycle()
+                val status = downloadItems.firstOrNull { it.track.id == track.id }?.status
+                when (status) {
+                    DownloadStatus.DONE -> MenuItem("Remove download", Icons.Rounded.Delete) {
+                        downloads.remove(track.id)
+                        message("Download removed")
+                        onDismiss()
+                    }
+                    DownloadStatus.QUEUED, DownloadStatus.RUNNING -> MenuItem("Cancel download", Icons.Rounded.Close) {
+                        downloads.remove(track.id)
+                        message("Download cancelled")
+                        onDismiss()
+                    }
+                    else -> MenuItem(
+                        if (status == DownloadStatus.FAILED) "Retry download" else "Download for offline",
+                        Icons.Rounded.Download,
+                    ) {
+                        downloads.request(track) { result -> message(downloadMessage(track.title, result, wifiOnly)) }
+                        onDismiss()
+                    }
+                }
             }
             if (track.artist.isNotBlank() && !track.artist.equals("Unknown artist", ignoreCase = true)) {
                 MenuItem("Go to artist (${track.artist})", Icons.Rounded.Person) {

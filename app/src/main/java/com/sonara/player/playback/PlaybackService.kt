@@ -8,11 +8,17 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import com.sonara.player.BuildConfig
 import com.sonara.player.MainActivity
 import com.sonara.player.SonaraApp
 
@@ -65,6 +71,7 @@ class PlaybackService : MediaSessionService() {
             .setAudioAttributes(audioAttributes, /* handleAudioFocus = */ true)
             .setHandleAudioBecomingNoisy(true) // pause when headphones are unplugged
             .setWakeMode(C.WAKE_MODE_NETWORK) // keep CPU + Wi-Fi awake while streaming
+            .setMediaSourceFactory(buildMediaSourceFactory())
             .build()
         player.addListener(serviceListener)
 
@@ -96,6 +103,29 @@ class PlaybackService : MediaSessionService() {
 
         // Effects need the player's audio session id; it exists as soon as the player is built.
         (application as SonaraApp).container.fx.attach(player.audioSessionId)
+    }
+
+    /**
+     * Online songs go through the play cache (saved while streaming, so replays are free).
+     * Songs on the phone and downloaded files are read directly and are never cached.
+     */
+    private fun buildMediaSourceFactory(): DefaultMediaSourceFactory {
+        val http = DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(15_000)
+            .setReadTimeoutMs(20_000)
+            .setUserAgent("Sonara/" + BuildConfig.VERSION_NAME)
+        val cache = PlayCache.getOrNull(this)
+        val network: DataSource.Factory = if (cache != null) {
+            CacheDataSource.Factory()
+                .setCache(cache)
+                .setUpstreamDataSourceFactory(http)
+                .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        } else {
+            http
+        }
+        // DefaultDataSource sends http(s) through [network] and reads content:// and file:// itself.
+        return DefaultMediaSourceFactory(DefaultDataSource.Factory(this, network))
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
