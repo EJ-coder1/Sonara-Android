@@ -385,7 +385,7 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
                 _onlinePlaylists.value = CatalogueState.Ready(emptyList())
             }
 
-            _worldwideCatalog.value = globalCall.await().fold<GlobalCatalogState>(
+            _worldwideCatalog.value = globalCall.await().fold<GlobalCatalogState, List<com.sonara.player.data.GlobalCatalogTrack>>(
                 onSuccess = { GlobalCatalogState.Ready(it) },
                 onFailure = { GlobalCatalogState.Error(it.friendlyMessage()) },
             )
