@@ -14,6 +14,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,6 +59,7 @@ fun SearchScreen(
     val online by vm.online.collectAsStateWithLifecycle()
     val songsState by appVm.songs.collectAsStateWithLifecycle()
     val playerState by player.state.collectAsStateWithLifecycle()
+    val history by appVm.searchHistory.collectAsStateWithLifecycle()
 
     // "Go to artist / album" from the track menu pre-fills the search box.
     val request by appVm.searchRequest.collectAsStateWithLifecycle()
@@ -109,7 +114,10 @@ fun SearchScreen(
                 singleLine = true,
                 shape = RoundedCornerShape(28.dp),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
+                keyboardActions = KeyboardActions(onSearch = {
+                    focus.clearFocus()
+                    appVm.addSearch(query)
+                }),
             )
         }
 
@@ -119,6 +127,37 @@ fun SearchScreen(
                     "Start typing to search",
                     subtitle = if (vm.isConfigured) "Searches your phone and free music online." else "Searches the music on your phone.",
                 )
+            }
+            if (history.isNotEmpty()) {
+                item(key = "history-header") {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(start = 20.dp, end = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "Recent searches",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = { appVm.clearSearchHistory() }) { Text("Clear") }
+                    }
+                }
+                item(key = "history") {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(history, key = { it }) { term ->
+                            AssistChip(
+                                onClick = { vm.setQuery(term) },
+                                leadingIcon = { Icon(Icons.Rounded.History, contentDescription = null) },
+                                label = { Text(term) },
+                            )
+                        }
+                    }
+                }
             }
             if (vm.isConfigured) {
                 item(key = "suggestions") {
@@ -140,7 +179,10 @@ fun SearchScreen(
                     TrackRow(
                         track = track,
                         isCurrent = playerState.current?.id == track.id,
-                        onClick = { player.playQueue(localMatches, localMatches.indexOf(track)) },
+                        onClick = {
+                            appVm.addSearch(q)
+                            player.playQueue(localMatches, localMatches.indexOf(track))
+                        },
                     )
                 }
             }
@@ -163,7 +205,10 @@ fun SearchScreen(
                                 TrackRow(
                                     track = track,
                                     isCurrent = playerState.current?.id == track.id,
-                                    onClick = { player.playQueue(s.tracks, s.tracks.indexOf(track)) },
+                                    onClick = {
+                                        appVm.addSearch(q)
+                                        player.playQueue(s.tracks, s.tracks.indexOf(track))
+                                    },
                                 )
                             }
                         }

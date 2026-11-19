@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.sonara.player.SonaraApp
 import com.sonara.player.data.Accent
+import com.sonara.player.data.MiniShape
 import com.sonara.player.data.MixBuilder
 import com.sonara.player.data.OfflinePrefs
 import com.sonara.player.data.Playlist
@@ -76,6 +77,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val uiPrefs: StateFlow<UiPrefs> =
         store.uiPrefs.stateIn(viewModelScope, SharingStarted.Eagerly, UiPrefs())
+    val searchHistory: StateFlow<List<String>> =
+        store.searchHistory.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     /** null until loaded. */
     val offlinePrefs: StateFlow<OfflinePrefs> =
         store.offlinePrefs.stateIn(viewModelScope, SharingStarted.Eagerly, OfflinePrefs())
@@ -133,6 +136,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setAccent(accent: Accent) = viewModelScope.launch { store.setAccent(accent) }
     fun setFluidBackdrop(on: Boolean) = viewModelScope.launch { store.setFluidBackdrop(on) }
     fun setWavySeekBar(on: Boolean) = viewModelScope.launch { store.setWavySeekBar(on) }
+    /** Saves the user's own two colors and switches to the Custom palette. */
+    fun setCustomColors(primary: Int, secondary: Int) = viewModelScope.launch {
+        store.setCustomColors(primary, secondary)
+        store.setAccent(Accent.CUSTOM)
+    }
+    fun setMiniShape(shape: MiniShape) = viewModelScope.launch { store.setMiniShape(shape) }
+    fun setSpinArtwork(on: Boolean) = viewModelScope.launch { store.setSpinArtwork(on) }
+    fun setProgressRing(on: Boolean) = viewModelScope.launch { store.setProgressRing(on) }
+    fun setSwipeMiniPlayer(on: Boolean) = viewModelScope.launch { store.setSwipeMiniPlayer(on) }
+    fun setAnimations(on: Boolean) = viewModelScope.launch { store.setAnimations(on) }
+    fun setSkipSilence(on: Boolean) = viewModelScope.launch { store.setSkipSilence(on) }
+    fun addSearch(query: String) = viewModelScope.launch { store.addSearch(query) }
+    fun clearSearchHistory() = viewModelScope.launch { store.clearSearchHistory() }
     fun setLyricsEnabled(on: Boolean) = viewModelScope.launch { store.setLyricsEnabled(on) }
     fun setLyricsScale(percent: Int) = viewModelScope.launch { store.setLyricsScale(percent) }
     fun setLyricsOffset(ms: Int) = viewModelScope.launch { store.setLyricsOffset(ms) }

@@ -82,6 +82,8 @@ class PlaybackService : MediaSessionService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
+        PlaybackBridge.attach(player)
+
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(openApp)
             .setBitmapLoader(ArtworkBitmapLoader(this))
@@ -139,6 +141,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        PlaybackBridge.detach()
         (application as SonaraApp).container.fx.release()
         mediaSession?.run {
             player.removeListener(serviceListener)

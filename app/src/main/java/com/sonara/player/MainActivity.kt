@@ -72,7 +72,14 @@ class MainActivity : ComponentActivity() {
                 onDispose { }
             }
 
-            SonaraTheme(darkTheme = dark, dynamicColor = dynamic, amoled = uiPrefs.amoled, accent = uiPrefs.accent) {
+            SonaraTheme(
+                darkTheme = dark,
+                dynamicColor = dynamic,
+                amoled = uiPrefs.amoled,
+                accent = uiPrefs.accent,
+                customPrimary = uiPrefs.customPrimary,
+                customSecondary = uiPrefs.customSecondary,
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,

@@ -27,3 +27,7 @@ Material Icons: Copyright Google LLC. Licensed under the Apache License, Version
 You may obtain a copy of the license at http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software distributed under the license is distributed on an "AS IS" basis, without warranties or conditions of any kind, either express or implied. See the license for the specific language governing permissions and limitations.
+
+## Inspiration
+
+Sonara's look and features were inspired by ideas from other open-source music players, including LastWave, ArchiveTune and Spotube. Sonara is new code written from scratch; no code from these projects is included. Thank you to their authors.

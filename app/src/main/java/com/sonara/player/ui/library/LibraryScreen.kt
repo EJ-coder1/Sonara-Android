@@ -69,6 +69,12 @@ import com.sonara.player.ui.components.LocalDownloads
 import com.sonara.player.ui.components.LocalOfflinePrefs
 import com.sonara.player.ui.components.Artwork
 import com.sonara.player.util.formatBytes
+import androidx.compose.material.icons.rounded.SwapVert
+import androidx.compose.material3.ScrollableTabRow
+import com.sonara.player.data.LibraryGroup
+import com.sonara.player.data.LibraryGroups
+import com.sonara.player.data.SongSort
+import com.sonara.player.data.sortSongs
 import com.sonara.player.data.Track
 import com.sonara.player.ui.AppViewModel
 import com.sonara.player.ui.SongsState
@@ -93,7 +99,11 @@ fun LibraryScreen(
 
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var showNewPlaylist by remember { mutableStateOf(false) }
-    val tabs = listOf("Songs", "Liked", "Playlists", "Downloads")
+    val tabs = listOf("Songs", "Albums", "Artists", "Liked", "Playlists", "Downloads")
+    var sortName by rememberSaveable { mutableStateOf(SongSort.TITLE.name) }
+    val sortOrder = remember(sortName) { SongSort.valueOf(sortName) }
+    var sortMenuOpen by remember { mutableStateOf(false) }
+    val allSongs = (songsState as? SongsState.Ready)?.songs.orEmpty()
 
     Column(
         Modifier
@@ -108,14 +118,40 @@ fun LibraryScreen(
         ) {
             Text("Library", style = MaterialTheme.typography.headlineLarge, modifier = Modifier.weight(1f))
             if (tab == 0) {
+                Box {
+                    IconButton(onClick = { sortMenuOpen = true }) {
+                        Icon(Icons.Rounded.SwapVert, contentDescription = "Sort songs, now ${sortOrder.label}")
+                    }
+                    DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
+                        SongSort.entries.forEach { option ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        option.label,
+                                        color = if (option == sortOrder) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface,
+                                    )
+                                },
+                                onClick = {
+                                    sortName = option.name
+                                    sortMenuOpen = false
+                                },
+                            )
+                        }
+                    }
+                }
                 IconButton(onClick = { appVm.refreshSongs() }) {
                     Icon(Icons.Rounded.Refresh, contentDescription = "Rescan music on this phone")
                 }
             }
         }
-        TabRow(selectedTabIndex = tab, containerColor = MaterialTheme.colorScheme.background) {
+        ScrollableTabRow(
+            selectedTabIndex = tab,
+            containerColor = MaterialTheme.colorScheme.background,
+            edgePadding = 12.dp,
+        ) {
             tabs.forEachIndexed { i, label ->
-                Tab(selected = tab == i, onClick = { tab = i }, text = { Text(label) })
+                Tab(selected = tab == i, onClick = { tab = i }, text = { Text(label, maxLines = 1, softWrap = false) })
             }
         }
 
@@ -142,14 +178,29 @@ fun LibraryScreen(
                             "No music found on this phone. Add songs, then tap the refresh button.",
                             icon = Icons.Rounded.MusicOff,
                         )
-                    } else TrackList(
-                        tracks = s.songs,
-                        currentId = playerState.current?.id,
-                        bottom = listBottom,
-                        showShuffleBar = true,
-                    )
+                    } else {
+                        val sorted = remember(s.songs, sortOrder) { sortSongs(s.songs, sortOrder) }
+                        TrackList(
+                            tracks = sorted,
+                            currentId = playerState.current?.id,
+                            bottom = listBottom,
+                            showShuffleBar = true,
+                        )
+                    }
             }
-            1 -> if (favorites.isEmpty()) CenteredMessage {
+            1 -> GroupList(
+                groups = remember(allSongs) { LibraryGroups.albums(allSongs) },
+                emptyText = "Albums appear here once your songs have album names.",
+                bottom = listBottom,
+                onClick = { appVm.requestSearch(it.name) },
+            )
+            2 -> GroupList(
+                groups = remember(allSongs) { LibraryGroups.artists(allSongs) },
+                emptyText = "Artists appear here once your songs have artist names.",
+                bottom = listBottom,
+                onClick = { appVm.requestSearch(it.name) },
+            )
+            3 -> if (favorites.isEmpty()) CenteredMessage {
                 MessageCard(
                     "Tap the heart on any song and it will show up here.",
                     icon = Icons.Rounded.FavoriteBorder,
@@ -161,7 +212,7 @@ fun LibraryScreen(
                 showShuffleBar = true,
                 onDownloadAll = rememberDownloadAll(favorites),
             )
-            2 -> LazyColumn(contentPadding = PaddingValues(bottom = listBottom)) {
+            4 -> LazyColumn(contentPadding = PaddingValues(bottom = listBottom)) {
                 item(key = "new") {
                     FilledTonalButton(
                         onClick = { showNewPlaylist = true },
@@ -611,6 +662,48 @@ private fun DownloadRow(
                 contentDescription = if (item.status == DownloadStatus.DONE) "Delete the download of ${item.track.title}"
                 else "Cancel the download of ${item.track.title}",
             )
+        }
+    }
+}
+
+
+/** Albums or artists: tap one to search for it. */
+@Composable
+private fun GroupList(
+    groups: List<LibraryGroup>,
+    emptyText: String,
+    bottom: Dp,
+    onClick: (LibraryGroup) -> Unit,
+) {
+    if (groups.isEmpty()) {
+        CenteredMessage { MessageCard(emptyText, icon = Icons.Rounded.MusicOff) }
+        return
+    }
+    LazyColumn(contentPadding = PaddingValues(bottom = bottom)) {
+        items(groups, key = { it.name.lowercase() }) { group ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { onClick(group) }
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Artwork(group.sample, Modifier.size(56.dp), corner = 14.dp, sizePx = 128)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        group.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        if (group.count == 1) "1 song" else "${group.count} songs",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }

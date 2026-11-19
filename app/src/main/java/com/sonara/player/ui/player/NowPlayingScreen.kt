@@ -1,5 +1,7 @@
 package com.sonara.player.ui.player
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -246,6 +248,16 @@ fun NowPlayingScreen(
                         )
                     }
                     Spacer(Modifier.width(8.dp))
+                    // A little pop when the heart is switched (not when the screen first opens).
+                    val heart = remember { Animatable(1f) }
+                    var heartReady by remember { mutableStateOf(false) }
+                    LaunchedEffect(isFavorite) {
+                        if (heartReady) {
+                            heart.animateTo(1.35f, spring(dampingRatio = 0.35f, stiffness = 600f))
+                            heart.animateTo(1f, spring(dampingRatio = 0.5f))
+                        }
+                        heartReady = true
+                    }
                     GlassButton(
                         onClick = { onToggleFavorite(track) },
                         description = if (isFavorite) "Remove from liked songs" else "Add to liked songs",
@@ -255,6 +267,10 @@ fun NowPlayingScreen(
                             imageVector = if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                             contentDescription = null,
                             tint = if (isFavorite) MaterialTheme.colorScheme.secondary else OnBackdrop,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = heart.value
+                                scaleY = heart.value
+                            },
                         )
                     }
                 }
@@ -631,72 +647,6 @@ private fun QueueSheet(state: PlayerUiState, onDismiss: () -> Unit) {
                     }
                 }
             }
-        }
-    }
-}
-
-/** Compact player shown above the bottom navigation while something is loaded. */
-@Composable
-fun MiniPlayer(
-    state: PlayerUiState,
-    onOpen: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val track = state.current ?: return
-    val player = LocalPlayer.current
-    val fraction = if (state.durationMs > 0L) (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 2.dp,
-        shadowElevation = 6.dp,
-    ) {
-        Column {
-            Row(
-                Modifier
-                    .clickable(onClickLabel = "Open player", onClick = onOpen)
-                    .padding(start = 8.dp, end = 4.dp, top = 8.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Artwork(track, Modifier.size(46.dp), corner = 12.dp, sizePx = 128)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        track.title,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        track.artist,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                FilledIconButton(onClick = player::togglePlayPause) {
-                    Icon(
-                        if (state.playWhenReady) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                        contentDescription = if (state.playWhenReady) "Pause" else "Play",
-                    )
-                }
-                IconButton(onClick = player::next) {
-                    Icon(Icons.Rounded.SkipNext, contentDescription = "Next track")
-                }
-            }
-            LinearProgressIndicator(
-                progress = { fraction },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(3.dp),
-                trackColor = Color.Transparent,
-            )
         }
     }
 }

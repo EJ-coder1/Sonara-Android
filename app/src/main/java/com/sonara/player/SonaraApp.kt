@@ -12,6 +12,7 @@ import com.sonara.player.data.downloads.DownloadsManager
 import com.sonara.player.data.lyrics.LyricsRepository
 import com.sonara.player.playback.AudioEffectsManager
 import com.sonara.player.playback.PlayCache
+import com.sonara.player.playback.PlaybackBridge
 import com.sonara.player.playback.PlayerController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +52,9 @@ class AppContainer(private val app: Application) {
                 trimPlayCache()
             }
         }
+
+        // Options that live inside the playback service follow the settings.
+        scope.launch { store.uiPrefs.collect { PlaybackBridge.setSkipSilence(it.skipSilence) } }
 
         restoreLastSession()
         keepSavingSession()

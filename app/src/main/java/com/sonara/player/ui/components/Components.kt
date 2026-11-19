@@ -46,6 +46,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,9 +75,7 @@ import com.sonara.player.data.UiPrefs
 import com.sonara.player.playback.AudioEffectsManager
 import com.sonara.player.playback.PlayerController
 import com.sonara.player.ui.OnlineState
-import com.sonara.player.ui.theme.BrandDeep
-import com.sonara.player.ui.theme.BrandPink
-import com.sonara.player.ui.theme.BrandViolet
+import com.sonara.player.ui.theme.LocalBrandColors
 import com.sonara.player.util.formatTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -167,8 +166,13 @@ fun rememberArtworkBitmap(track: Track?, sizePx: Int): Bitmap? {
 /** Average color of a bitmap as an ARGB int. */
 fun Bitmap.averageColorArgb(): Int = Bitmap.createScaledBitmap(this, 1, 1, true).getPixel(0, 0)
 
+/** The signature gradient in the current palette's colors. */
 val BrandGradient: Brush
-    get() = Brush.linearGradient(listOf(BrandDeep, BrandViolet, BrandPink))
+    @Composable
+    get() {
+        val brand = LocalBrandColors.current
+        return remember(brand) { Brush.linearGradient(listOf(brand.deep, brand.mid, brand.glow)) }
+    }
 
 /** Album art for any track. Shows the brand gradient + note while loading or when there is no art. */
 @Composable
@@ -261,6 +265,9 @@ fun TrackRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+        if (isCurrent) {
+            PlayingBars(active = LocalIsPlaying.current, modifier = Modifier.padding(start = 6.dp))
         }
         if (track.id in LocalDownloadedIds.current) {
             Icon(

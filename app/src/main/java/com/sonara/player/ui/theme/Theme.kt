@@ -10,6 +10,8 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -96,32 +98,35 @@ fun isDarkFor(mode: ThemeMode): Boolean = when (mode) {
 private fun hsl(h: Float, s: Float, l: Float) = Color(ColorMath.hslToArgb(h, s, l))
 
 /** Hue and saturation that define each non-default accent. */
-private fun accentSeed(accent: Accent): Pair<Float, Float> = when (accent) {
-    Accent.VIOLET -> 265f to 0.80f
-    Accent.CRIMSON -> 352f to 0.75f
-    Accent.OCEAN -> 203f to 0.75f
-    Accent.SAGE -> 140f to 0.32f
-    Accent.AMBER -> 38f to 0.85f
-    Accent.ROSE -> 328f to 0.70f
-    Accent.MONO -> 0f to 0f
-}
 
 /** Builds a full Material color scheme from one accent. Violet keeps the hand-tuned brand colors. */
-fun accentColorScheme(accent: Accent, dark: Boolean): ColorScheme {
+/** The two colors of a palette: the user's own picks for Custom, otherwise the palette's built-in pair. */
+fun paletteColors(accent: Accent, customPrimary: Int, customSecondary: Int): Pair<Int, Int> =
+    if (accent == Accent.CUSTOM) customPrimary to customSecondary else accent.primary to accent.secondary
+
+fun accentColorScheme(
+    accent: Accent,
+    dark: Boolean,
+    customPrimary: Int = Accent.CUSTOM.primary,
+    customSecondary: Int = Accent.CUSTOM.secondary,
+): ColorScheme {
     if (accent == Accent.VIOLET) return if (dark) DarkColors else LightColors
-    val (h, s) = accentSeed(accent)
+    val (main, second) = paletteColors(accent, customPrimary, customSecondary)
+    val (h, mainSat, _) = ColorMath.toHsl(main)
+    val (h2, secondSat, _) = ColorMath.toHsl(second)
+    val s = mainSat.coerceIn(0f, 0.95f)
+    val s2 = secondSat.coerceIn(0f, 0.95f)
     val tint = minOf(s * 0.35f, 0.30f) // how much of the accent leaks into backgrounds
-    val h2 = h + 25f
     return if (dark) {
         darkColorScheme(
             primary = hsl(h, s, 0.78f),
             onPrimary = hsl(h, s * 0.9f, 0.16f),
             primaryContainer = hsl(h, s * 0.8f, 0.30f),
             onPrimaryContainer = hsl(h, s, 0.92f),
-            secondary = hsl(h2, s * 0.7f, 0.76f),
-            onSecondary = hsl(h2, s * 0.7f, 0.16f),
-            secondaryContainer = hsl(h2, s * 0.5f, 0.28f),
-            onSecondaryContainer = hsl(h2, s * 0.8f, 0.90f),
+            secondary = hsl(h2, s2 * 0.9f, 0.76f),
+            onSecondary = hsl(h2, s2 * 0.8f, 0.16f),
+            secondaryContainer = hsl(h2, s2 * 0.6f, 0.28f),
+            onSecondaryContainer = hsl(h2, s2 * 0.9f, 0.90f),
             background = hsl(h, tint, 0.07f),
             onBackground = hsl(h, tint * 0.5f, 0.92f),
             surface = hsl(h, tint, 0.07f),
@@ -144,10 +149,10 @@ fun accentColorScheme(accent: Accent, dark: Boolean): ColorScheme {
             onPrimary = Color.White,
             primaryContainer = hsl(h, s * 0.9f, 0.90f),
             onPrimaryContainer = hsl(h, s, 0.15f),
-            secondary = hsl(h2, s * 0.8f, 0.38f),
+            secondary = hsl(h2, s2, 0.38f),
             onSecondary = Color.White,
-            secondaryContainer = hsl(h2, s * 0.7f, 0.90f),
-            onSecondaryContainer = hsl(h2, s, 0.15f),
+            secondaryContainer = hsl(h2, s2 * 0.8f, 0.90f),
+            onSecondaryContainer = hsl(h2, s2, 0.15f),
             background = hsl(h, tint * 0.8f, 0.98f),
             onBackground = hsl(h, tint, 0.10f),
             surface = hsl(h, tint * 0.8f, 0.98f),
@@ -168,7 +173,7 @@ fun accentColorScheme(accent: Accent, dark: Boolean): ColorScheme {
 }
 
 /** True black surfaces (saves battery on OLED screens). Only used in dark mode. */
-private fun ColorScheme.asAmoled(): ColorScheme = copy(
+fun ColorScheme.asAmoled(): ColorScheme = copy(
     background = Color.Black,
     surface = Color.Black,
     surfaceContainerLowest = Color.Black,
@@ -176,20 +181,48 @@ private fun ColorScheme.asAmoled(): ColorScheme = copy(
     surfaceContainer = Color(0xFF111114),
 )
 
+/** The three colors of the app's signature gradient (hero card, placeholders, backdrops). */
+data class BrandColors(val deep: Color, val mid: Color, val glow: Color)
+
+val LocalBrandColors = staticCompositionLocalOf { BrandColors(BrandDeep, BrandViolet, BrandPink) }
+
+fun brandColorsFor(accent: Accent, customPrimary: Int, customSecondary: Int): BrandColors {
+    if (accent == Accent.VIOLET) return BrandColors(BrandDeep, BrandViolet, BrandPink)
+    val (main, second) = paletteColors(accent, customPrimary, customSecondary)
+    val (h, mainSat, _) = ColorMath.toHsl(main)
+    val (h2, secondSat, _) = ColorMath.toHsl(second)
+    val s = mainSat.coerceIn(0f, 0.95f)
+    val s2 = secondSat.coerceIn(0f, 0.95f)
+    return BrandColors(
+        deep = hsl(h, s, 0.20f),
+        mid = hsl(h, s, 0.44f),
+        glow = hsl(h2, s2, 0.56f),
+    )
+}
+
 @Composable
 fun SonaraTheme(
     darkTheme: Boolean,
     dynamicColor: Boolean,
     amoled: Boolean = false,
     accent: Accent = Accent.VIOLET,
+    customPrimary: Int = Accent.CUSTOM.primary,
+    customSecondary: Int = Accent.CUSTOM.secondary,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
+    val useWallpaper = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val base = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        else -> accentColorScheme(accent, darkTheme)
+        useWallpaper -> if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        else -> accentColorScheme(accent, darkTheme, customPrimary, customSecondary)
     }
     val colors = if (darkTheme && amoled) base.asAmoled() else base
-    MaterialTheme(colorScheme = colors, typography = SonaraTypography, content = content)
+    val brand = if (useWallpaper) {
+        BrandColors(base.primaryContainer, base.primary, base.tertiary)
+    } else {
+        brandColorsFor(accent, customPrimary, customSecondary)
+    }
+    CompositionLocalProvider(LocalBrandColors provides brand) {
+        MaterialTheme(colorScheme = colors, typography = SonaraTypography, content = content)
+    }
 }

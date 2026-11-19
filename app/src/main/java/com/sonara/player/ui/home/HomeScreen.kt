@@ -1,5 +1,11 @@
 package com.sonara.player.ui.home
 
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.remember
+import com.sonara.player.ui.components.animatedItem
+import com.sonara.player.ui.components.pressScale
+import com.sonara.player.ui.components.rememberMotionEnabled
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -83,6 +89,8 @@ fun HomeScreen(
     val moodTracks by homeVm.moodTracks.collectAsStateWithLifecycle()
 
     val songs = (songsState as? SongsState.Ready)?.songs.orEmpty()
+    val motion = rememberMotionEnabled()
+    val seen = remember { mutableSetOf<Int>() }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -93,7 +101,7 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         // ---- greeting ----
-        item(key = "header") {
+        animatedItem("header", 0, seen, motion) {
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -115,7 +123,7 @@ fun HomeScreen(
         }
 
         // ---- hero ----
-        item(key = "hero") {
+        animatedItem("hero", 1, seen, motion) {
             val last = recents.firstOrNull()
             HeroCard(
                 last = last,
@@ -127,7 +135,7 @@ fun HomeScreen(
         }
 
         // ---- quick picks ----
-        item(key = "quick") {
+        animatedItem("quick", 2, seen, motion) {
             Column(
                 Modifier.padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -174,18 +182,18 @@ fun HomeScreen(
 
         // ---- recently played ----
         if (recents.isNotEmpty()) {
-            item(key = "recents-header") { SectionHeader("Recently played") }
-            item(key = "recents") {
+            animatedItem("recents-header", 3, seen, motion) { SectionHeader("Recently played") }
+            animatedItem("recents", 3, seen, motion) {
                 TrackCardRow(recents, onPlay = { player.playQueue(recents, it) })
             }
         }
 
         // ---- online ----
         if (homeVm.isConfigured) {
-            item(key = "moods-header") {
+            animatedItem("moods-header", 4, seen, motion) {
                 SectionHeader("Pick a mood", subtitle = "Free music matched to how you feel")
             }
-            item(key = "moods") {
+            animatedItem("moods", 4, seen, motion) {
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -200,7 +208,7 @@ fun HomeScreen(
                 }
             }
             if (selectedMood != null) {
-                item(key = "mood-tracks") {
+                animatedItem("mood-tracks", 4, seen, motion) {
                     OnlineTrackRow(
                         state = moodTracks,
                         onRetry = { homeVm.selectMood(selectedMood) },
@@ -209,10 +217,10 @@ fun HomeScreen(
                 }
             }
 
-            item(key = "trending-header") {
+            animatedItem("trending-header", 5, seen, motion) {
                 SectionHeader("Trending this week", subtitle = "Free music from independent artists")
             }
-            item(key = "trending") {
+            animatedItem("trending", 5, seen, motion) {
                 OnlineTrackRow(
                     state = trending,
                     onRetry = homeVm::retryTrending,
@@ -220,8 +228,8 @@ fun HomeScreen(
                 )
             }
 
-            item(key = "new-header") { SectionHeader("New releases") }
-            item(key = "new") {
+            animatedItem("new-header", 6, seen, motion) { SectionHeader("New releases") }
+            animatedItem("new", 6, seen, motion) {
                 OnlineTrackRow(
                     state = newReleases,
                     onRetry = homeVm::retryNewReleases,
@@ -229,7 +237,7 @@ fun HomeScreen(
                 )
             }
 
-            item(key = "credit") {
+            animatedItem("credit", 7, seen, motion) {
                 Text(
                     "Free music provided by Jamendo. Each track is shared by its artist under a Creative Commons license. Open a track's menu to see its license.",
                     style = MaterialTheme.typography.bodySmall,
@@ -238,7 +246,7 @@ fun HomeScreen(
                 )
             }
         } else if (BuildConfig.DEBUG) {
-            item(key = "dev-note") {
+            animatedItem("dev-note", 7, seen, motion) {
                 MessageCard("Online music is off. Add JAMENDO_CLIENT_ID to local.properties (see README), then rebuild.")
             }
         }
@@ -369,11 +377,13 @@ private fun QuickTile(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
+    val source = remember { MutableInteractionSource() }
     Surface(
         modifier = modifier
             .alpha(if (enabled) 1f else 0.5f)
+            .pressScale(source)
             .clip(RoundedCornerShape(18.dp))
-            .clickable(enabled = enabled, onClick = onClick),
+            .clickable(interactionSource = source, indication = LocalIndication.current, enabled = enabled, onClick = onClick),
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {

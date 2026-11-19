@@ -65,6 +65,7 @@ import com.sonara.player.playback.PlayerUiState
 import com.sonara.player.ui.components.LocalFx
 import com.sonara.player.ui.components.LocalDownloadedIds
 import com.sonara.player.ui.components.LocalDownloads
+import com.sonara.player.ui.components.LocalIsPlaying
 import com.sonara.player.ui.components.LocalOfflinePrefs
 import com.sonara.player.ui.components.LocalMessage
 import com.sonara.player.ui.components.LocalPlayer
@@ -82,6 +83,7 @@ import com.sonara.player.ui.search.SearchScreen
 import com.sonara.player.ui.settings.AppIconScreen
 import com.sonara.player.ui.settings.LegalScreen
 import com.sonara.player.ui.settings.SettingsScreen
+import com.sonara.player.ui.settings.ThemeStudioScreen
 import com.sonara.player.ui.settings.WelcomeScreen
 import com.sonara.player.util.BatteryOptimization
 import com.sonara.player.util.findActivity
@@ -92,6 +94,7 @@ private const val ROUTE_SEARCH = "search"
 private const val ROUTE_LIBRARY = "library"
 private const val ROUTE_SETTINGS = "settings"
 private const val ROUTE_APP_ICONS = "appicons"
+private const val ROUTE_THEME_STUDIO = "themestudio"
 
 private fun audioPermission(): String =
     if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO
@@ -199,6 +202,7 @@ fun SonaraRoot(appVm: AppViewModel, player: PlayerController) {
         LocalRequestAudioAccess provides requestAudioAccess,
         LocalFx provides fx,
         LocalDownloads provides downloads,
+        LocalIsPlaying provides playerState.isPlaying,
         LocalDownloadedIds provides downloadedIds,
         LocalOfflinePrefs provides offlinePrefs,
         LocalUiPrefs provides uiPrefs,
@@ -373,6 +377,14 @@ private fun MainContent(
                         onBack = { nav.popBackStack() },
                         onOpenLegal = { doc -> nav.navigate("legal/$doc") },
                         onOpenAppIcons = { nav.navigate(ROUTE_APP_ICONS) },
+                        onOpenThemeStudio = { nav.navigate(ROUTE_THEME_STUDIO) },
+                    )
+                }
+                composable(ROUTE_THEME_STUDIO) {
+                    ThemeStudioScreen(
+                        padding = inner,
+                        appVm = appVm,
+                        onBack = { nav.popBackStack() },
                     )
                 }
                 composable(ROUTE_APP_ICONS) {

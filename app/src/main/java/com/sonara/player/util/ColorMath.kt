@@ -53,4 +53,30 @@ object ColorMath {
         }
         return 0.2126f * ch((argb shr 16) and 0xFF) + 0.7152f * ch((argb shr 8) and 0xFF) + 0.0722f * ch(argb and 0xFF)
     }
+
+    /** Hue 0..360, saturation 0..1 and lightness 0..1 (HSL) of an ARGB color. */
+    fun toHsl(argb: Int): Triple<Float, Float, Float> {
+        val r = ((argb shr 16) and 0xFF) / 255f
+        val g = ((argb shr 8) and 0xFF) / 255f
+        val b = (argb and 0xFF) / 255f
+        val max = maxOf(r, g, b)
+        val min = minOf(r, g, b)
+        val l = (max + min) / 2f
+        val d = max - min
+        val s = if (d == 0f) 0f else d / (1f - abs(2f * l - 1f))
+        return Triple(hueOf(argb), s.coerceIn(0f, 1f), l)
+    }
+
+    /** "#7C3AED", "7C3AED" or the short "#73E" -> opaque ARGB. Anything else -> null. */
+    fun parseHex(text: String): Int? {
+        var t = text.trim().removePrefix("#")
+        if (t.length == 3) t = t.map { "$it$it" }.joinToString("")
+        if (t.length != 6) return null
+        if (!t.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) return null
+        val rgb = t.toIntOrNull(16) ?: return null
+        return (0xFF shl 24) or rgb
+    }
+
+    /** 0xFF7C3AED -> "#7C3AED" */
+    fun toHex(argb: Int): String = "#" + String.format("%06X", argb and 0xFFFFFF)
 }

@@ -17,6 +17,11 @@ This is original code. It does not copy LastWave's code (LastWave Native is GPL-
 - Downloads: save online songs for offline listening (only where the artist allows it), over Wi-Fi only if you like. Progress, retry and delete in Library > Downloads, \"Download all\" for liked songs and playlists, an offline badge on downloaded songs
 - Play cache: songs you stream are kept on the phone as they play, so playing them again uses no data. Pick the size (128 MB to 2 GB) or clear it in Settings
 - Resume where you left off: your last queue and position come back (paused) when you open the app
+- Theme Studio: 12 two-color palettes plus your own (pick the main and second color with sliders or a hex code, with a live preview), wallpaper colors, AMOLED black, light/dark/auto
+- Mini player: cover art in a circle, cookie, flower or rounded shape that turns while music plays, with a progress ring; swipe it left or right to change song
+- Premium Settings: card layout with icon chips, a hero card in your palette and gentle entrance animations (and an Animations switch for a calmer app)
+- Library: Albums and Artists tabs, sorting (title, artist, newest, longest) and a Downloads tab; Search remembers your recent searches
+- Skip silence, now-playing bars in song lists, a bounce on the like button
 - App icon: 16 launcher icons in 5 groups (Aurora, Nebula, Obsidian, Graphite, Neon, Midnight, Slate, Pearl, Cloud, Mint, Candy, Sunset, Ocean, Forest, Crimson, Gold), each with a themed-icon layer. Switch in Settings > Appearance > App icon
 - Search: your phone and online at once
 - Settings: light/dark/system theme, wallpaper colors (Android 12+), rescan, delete all my data
@@ -33,6 +38,9 @@ This is original code. It does not copy LastWave's code (LastWave Native is GPL-
 | Audio & Playback sheet, EQ presets | `ui/player/AudioSheet.kt`, `playback/AudioEffectsManager.kt`, `EqPresets.kt` (presets stretch to any band count) |
 | Track menu (mix, go to artist/album, specs) | `ui/TrackMenu.kt`, `data/MixBuilder.kt` (local songs never leave the phone) |
 | Battery exemption row | `util/BatteryOptimization.kt` + Settings > Playback (opens the system page, no special permission) |
+| Spinning shaped cover with progress ring | `ui/player/SpinningArtwork.kt` draws a scalloped outline with a polar curve, turns it with a frame-time loop that pauses when playback pauses, and a ring arc shows the progress |
+| Choose your own colors | `ui/settings/ThemeStudioScreen.kt` + `ui/theme/Theme.kt`: a palette is two colors; the whole color scheme and the signature gradient are generated from them (`ColorMath` does HSL and hex) |
+| Premium settings look | `ui/settings/SettingsComponents.kt`: hero card, group cards, icon chips, press feedback and staggered entrance (`ui/components/Motion.kt`) |
 | Download for offline | `data/downloads/DownloadsManager.kt` hands the transfer to Android's own DownloadManager (keeps going when the app is closed), files live in the app's private music folder |
 | Play cache | `playback/PlayCache.kt` + `PlaybackService`: streams go through Media3's cache; `CacheTrimPlanner` removes the least recently played songs when the size you chose is exceeded |
 | Pick a different app icon | `data/AppIcon.kt` + `util/AppIconManager.kt` switch one `<activity-alias>` on at a time; icons are single generated XML files in `res/mipmap-anydpi-v26`; `AppIconTest` keeps list, manifest and files in sync |
@@ -84,4 +92,4 @@ play-store/    listing text and the step-by-step CHECKLIST.md
 - Changing the app icon: some launchers take a few seconds to refresh and a few close the app when the icon changes. A pinned shortcut must be pinned again.
 - Every GitHub Actions build is signed with a fresh test key, so uninstall the old test build before installing a newer one.
 - Backups are off (`allowBackup=false`), so favorites and playlists don't move to a new phone. Add Auto Backup rules if you want that.
-- Unit tests cover lyrics parsing/timing, equalizer presets, audio labels, wave math, color math, mix building, the app icon list vs. manifest vs. icon files, play-cache trimming, session saving and size formatting. Add tests for `LibraryStore` and the view models, and a UI test for the first-run flow, before big changes.
+- Unit tests cover color hex/HSL helpers, song sorting, album/artist grouping, lyrics parsing/timing, equalizer presets, audio labels, wave math, color math, mix building, the app icon list vs. manifest vs. icon files, play-cache trimming, session saving and size formatting. Add tests for `LibraryStore` and the view models, and a UI test for the first-run flow, before big changes.
