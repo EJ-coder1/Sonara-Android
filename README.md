@@ -2,7 +2,7 @@
 
 A modern, private music player for Android. Plays the songs on your phone and streams free, Creative Commons music from independent artists (via Jamendo). Built with Kotlin, Jetpack Compose, Material 3 and Media3.
 
-This is original code. It does not copy LastWave's code (LastWave Native is GPL-3.0, which would force this app to be GPL-3.0 too). Features were rebuilt from scratch after studying what they do and why they feel good, the "Steal Like an Artist" way: steal the idea, not the code. See "Ideas borrowed" below.
+This is original Sonara code. It does not copy code from ArchiveTune or LastWave Native (both reference projects are GPL-3.0). Their discovery, queue and provider patterns were studied, but Sonara's provider layer is implemented independently. See "Ideas borrowed" and `docs/PROVIDER_ARCHITECTURE.md`.
 
 ## Features
 - Home: time-aware greeting, "Continue listening" card, quick picks, recently played, mood chips, trending and new releases (online)
@@ -23,9 +23,9 @@ This is original code. It does not copy LastWave's code (LastWave Native is GPL-
 - Library: Albums and Artists tabs, sorting (title, artist, newest, longest) and a Downloads tab; Search remembers your recent searches
 - Skip silence, now-playing bars in song lists, a bounce on the like button
 - App icon: 16 launcher icons in 5 groups (Aurora, Nebula, Obsidian, Graphite, Neon, Midnight, Slate, Pearl, Cloud, Mint, Candy, Sunset, Ocean, Forest, Crimson, Gold), each with a themed-icon layer. Switch in Settings > Appearance > App icon
-- Search: your phone and online at once, including Jamendo tracks, albums, artists and playlists
-- Online discovery tab: recently played online tracks, a For You mix based on Jamendo similar-track results, weekly trending, latest releases, Philippines artist-country charts, Philippines-based artists, moods, Jamendo hot playlists, popular albums and artists, and genre mixes
-- Online catalog pagination: 30-track pages with Load more for trending, new releases and the Philippines chart; catalogue metadata is cached in memory for 10–30 minutes
+- Search: your phone, playable Jamendo tracks/albums/artists/playlists, worldwide Apple/iTunes catalog metadata across PH/US/UK/KR storefronts, and one-tap handoff to official YouTube Music, Spotify and Apple Music search
+- Online discovery tab: recently played online tracks, a For You mix based on Jamendo similar-track results, weekly trending, latest releases, country-based charts and artists, moods, Jamendo hot playlists, popular albums and artists, and genre mixes
+- Online catalog pagination: 30-track pages with Load more for trending, new releases and regional charts; catalogue metadata is cached in memory for 10–30 minutes
 - Mood Radio Mixes: one-tap, 60-track queues generated from Jamendo mood tags (not continuous broadcast radio streams)
 - Settings: light/dark/system theme, wallpaper colors (Android 12+), rescan, delete all my data
 - Legal: Privacy Policy, Terms of Use, licenses (offline, in-app) + hosted copies in `docs/`
@@ -33,11 +33,11 @@ This is original code. It does not copy LastWave's code (LastWave Native is GPL-
 - Edge-to-edge, predictive back, adaptive + themed (monochrome) icon, splash screen
 
 ## Ideas borrowed (and how they were rebuilt)
-| Idea seen in LastWave | What Sonara does instead |
+| Idea seen in ArchiveTune / LastWave | What Sonara does instead |
 |---|---|
 | Wavy seek bar | `ui/player/WavySeekBar.kt`: own Canvas drawing, wave eases in and out with play/pause, math in `WaveMath.kt` (unit tested) |
 | Fluid, rotating artwork background | `ui/player/FluidBackdrop.kt`: tiny cover bitmap drawn huge (smooth scaling is the blur), three layers drifting at different speeds, honors "Remove animations" |
-| Word-by-word lyrics | `data/lyrics/`: LRCLIB line timing + estimated word timing (`LyricsTiming`), smooth per-frame sweep in `LyricsView.kt` |
+| Word-by-word lyrics | `data/lyrics/`: LRCLIB line timing, enhanced-LRC word stamps when available, estimated word timing otherwise, strict title/artist/version matching, and a smooth playback clock |
 | Audio & Playback sheet, EQ presets | `ui/player/AudioSheet.kt`, `playback/AudioEffectsManager.kt`, `EqPresets.kt` (presets stretch to any band count) |
 | Track menu (mix, go to artist/album, specs) | `ui/TrackMenu.kt`, `data/MixBuilder.kt` (local songs never leave the phone) |
 | Battery exemption row | `util/BatteryOptimization.kt` + Settings > Playback (opens the system page, no special permission) |
@@ -49,7 +49,7 @@ This is original code. It does not copy LastWave's code (LastWave Native is GPL-
 | Pick a different app icon | `data/AppIcon.kt` + `util/AppIconManager.kt` switch one `<activity-alias>` on at a time; icons are single generated XML files in `res/mipmap-anydpi-v26`; `AppIconTest` keeps list, manifest and files in sync |
 | Accent palettes, AMOLED | `ui/theme/Theme.kt` generates a full scheme from one hue (`util/ColorMath.kt`) |
 
-Left out on purpose: scraping YouTube/Spotify (against their terms and not Play-safe), Discord presence, Jam (needs a server), Last.fm scrobbling (needs API keys), animated Canvas video.
+Left out on purpose: extracting or scraping YouTube/Spotify audio (not an authorized playback API), Discord presence, Jam (needs a server), Last.fm scrobbling (needs API keys), animated Canvas video.
 
 ## Requirements
 - Android Studio (latest stable), JDK 17 (bundled with Android Studio)
@@ -87,19 +87,23 @@ play-store/    listing text and the step-by-step CHECKLIST.md
 ```
 
 ## Online discovery notes
-- Jamendo country charts and artist locations use the artist country/location declared on Jamendo. The Philippines section is therefore labelled as Filipino / Philippines-based discovery; it is not a guarantee that every song is mainstream OPM or Filipino-language music.
+- Worldwide search uses the Apple/iTunes Search API for catalog metadata and official store links. Sonara does not use the returned preview audio or extract Apple/YouTube/Spotify audio; full playback happens in the respective official app or website. Search terms and storefront country codes are sent to Apple when this search section is used.
+- The YouTube Music, Spotify and Apple Music chips are official-service search handoffs, not in-app stream resolvers. If the matching app is installed, Android may open it; otherwise the link opens in a browser.
+- Jamendo country charts and artist locations use the artist country/location declared on Jamendo. Sonara starts with the device's region (Philippines is the fallback if no country is set); the user can tap Use location to request approximate foreground location and update country-level recommendations. Only the ISO country code is sent to Jamendo; Sonara does not send or store latitude/longitude.
+- Jamendo is a worldwide independent-artist catalogue, not a complete catalogue of every commercial release. Each track has its own license and download permissions. Sonara does not scrape pirated sources or bypass stream/download restrictions.
 - The For You section asks Jamendo for tracks similar to the most recently played online track. With no online listening history, it falls back to this week’s trending tracks.
 - Mood Radio Mixes build a normal Sonara playback queue from Jamendo tags. Jamendo currently warns that the URL returned by its continuous radio stream method is not working, so Sonara does not present this as a live radio broadcast.
 - Track metadata is cached in memory (about 10 minutes for track lists and 30 minutes for catalogues); the existing Media3 play cache handles audio caching separately.
 - Track download actions must continue to respect Jamendo’s `audiodownload_allowed` field and each track’s license.
 
 ## Known limits and ideas for later
+- The global Apple/iTunes results are metadata listings, not Sonara-playable audio. The current in-app online playback provider remains Jamendo, where track-level license and download rules are respected. Provider expansion must use official/authorized playback APIs; do not add audio extraction from undocumented endpoints.
 - The latest changes were written and logic-tested outside Android Studio (pure logic runs in `app/src/test`), but the Compose UI could not be compiled there. Push to GitHub and open the Actions run: a compile error shows up as a short readable list.
-- Lyrics are opt-in because a lookup sends the song's title, artist, album and length to lrclib.net. The privacy policy already says so. Update your Play Data safety form if you publish.
-- Lyrics are line-synced; the word sweep inside a line is an estimate.
+- Lyrics are opt-in because a lookup sends the song's title, artist, album and length to lrclib.net. Before publishing, review Play Console's Data safety disclosures for optional approximate location and the online requests sent to Jamendo/LRCLIB.
+- Lyrics are line-synced. Enhanced LRC sources can provide word timestamps; when a source has only line timestamps, the word sweep inside a line remains an estimate. The line clock interpolates between player updates, and matching rejects different titles, artists, durations and recording versions before display.
 - Crossfade is not built yet.
 - Downloads exist only for online songs, and only when the artist allows it (Jamendo flags this per song). Songs already on your phone need no download. Downloaded files are kept in the app's private folder, so other music apps cannot see them and uninstalling the app removes them.
 - Changing the app icon: some launchers take a few seconds to refresh and a few close the app when the icon changes. A pinned shortcut must be pinned again.
 - Every GitHub Actions build is signed with a fresh test key, so uninstall the old test build before installing a newer one.
 - Backups are off (`allowBackup=false`), so favorites and playlists don't move to a new phone. Add Auto Backup rules if you want that.
-- Unit tests cover color hex/HSL helpers, song sorting, album/artist grouping, lyrics parsing/timing, equalizer presets, audio labels, wave math, color math, mix building, the app icon list vs. manifest vs. icon files, play-cache trimming, session saving and size formatting. Add tests for `LibraryStore` and the view models, and a UI test for the first-run flow, before big changes.
+- Unit tests cover color hex/HSL helpers, song sorting, album/artist grouping, lyrics parsing/timing and metadata matching, equalizer presets, audio labels, wave math, color math, mix building, the app icon list vs. manifest vs. icon files, play-cache trimming, session saving and size formatting. Add tests for `LibraryStore` and the view models, and a UI test for the first-run flow, before big changes.

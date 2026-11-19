@@ -3,8 +3,12 @@ package com.sonara.player.data.lyrics
 import kotlin.math.max
 import kotlin.math.min
 
-/** One line of synced lyrics. [text] is empty for an instrumental gap. */
-data class LyricLine(val timeMs: Long, val text: String)
+/** One synced lyric line. wordTimesMs aligns with [text]'s words when enhanced LRC is available. */
+data class LyricLine(
+    val timeMs: Long,
+    val text: String,
+    val wordTimesMs: List<Long> = emptyList(),
+)
 
 /** What the lyrics screen can show. */
 sealed interface LyricsState {
@@ -17,16 +21,12 @@ sealed interface LyricsState {
 }
 
 object Lrc {
-
-    // [mm:ss], [mm:ss.x], [mm:ss.xx], [mm:ss.xxx]  (also accepts ":" before the fraction)
-    private val timeTag = Regex("""\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?]""")
-
-    // Enhanced LRC word stamps such as <00:12.34>
-    private val wordTag = Regex("""<\d{1,3}:\d{2}(?:[.:]\d{1,3})?>""")
+    private val timeTag = Regex("\\[(\\d{1,3}):(\\d{2})(?:[.:](\\d{1,3}))?]")
+    private val wordTag = Regex("<(\\d{1,3}):(\\d{2})(?:[.:](\\d{1,3}))?>")
 
     /**
-     * Turns LRC text into time-sorted lines. Lines may carry several time tags
-     * ("[00:10.00][01:30.00]chorus"). Header tags like [ar:Artist] are ignored.
+     * Parses standard LRC and enhanced LRC. Enhanced word timestamps are retained instead of
+     * discarded, so sources that provide karaoke timing can drive the word sweep accurately.
      */
     fun parse(raw: String?): List<LyricLine> {
         if (raw.isNullOrBlank()) return emptyList()
@@ -36,36 +36,75 @@ object Lrc {
             if (line.isEmpty() || line[0] != '[') continue
             val tags = timeTag.findAll(line).toList()
             if (tags.isEmpty()) continue
-            // Everything after the last leading time tag is the text.
             var textStart = 0
             val leading = ArrayList<MatchResult>()
-            for (t in tags) {
-                if (t.range.first == textStart) {
-                    leading += t
-                    textStart = t.range.last + 1
+            for (tag in tags) {
+                if (tag.range.first == textStart) {
+                    leading += tag
+                    textStart = tag.range.last + 1
                 } else break
             }
             if (leading.isEmpty()) continue
-            val text = wordTag.replace(line.substring(textStart), "").trim()
-            for (t in leading) {
-                val mins = t.groupValues[1].toLong()
-                val sec = t.groupValues[2].toLong()
-                val frac = t.groupValues[3]
-                val ms = when (frac.length) {
-                    0 -> 0L
-                    1 -> frac.toLong() * 100L
-                    2 -> frac.toLong() * 10L
-                    else -> frac.take(3).toLong()
-                }
-                out += LyricLine(mins * 60_000L + sec * 1_000L + ms, text)
+
+            val firstLineTime = parseTimestamp(leading.first())
+            val (text, baseWordTimes) = parseEnhancedText(line.substring(textStart), firstLineTime)
+            leading.forEach { tag ->
+                val lineTime = parseTimestamp(tag)
+                val shift = lineTime - firstLineTime
+                val wordTimes = baseWordTimes.map { (it + shift).coerceAtLeast(0L) }
+                out += LyricLine(lineTime, text, wordTimes)
             }
         }
         out.sortBy { it.timeMs }
         return out
     }
+
+    private fun parseEnhancedText(raw: String, lineStartMs: Long): Pair<String, List<Long>> {
+        val tags = wordTag.findAll(raw).toList()
+        if (tags.isEmpty()) return wordTag.replace(raw, "").trim() to emptyList()
+
+        val words = ArrayList<String>()
+        val wordTimes = ArrayList<Long>()
+        var cursor = 0
+        var currentTime = lineStartMs
+
+        fun appendSegment(segment: String, startMs: Long) {
+            Regex("\\S+").findAll(segment).forEach { match ->
+                words += match.value
+                wordTimes += startMs
+            }
+        }
+
+        for (tag in tags) {
+            appendSegment(raw.substring(cursor, tag.range.first), currentTime)
+            currentTime = parseTimestamp(tag)
+            cursor = tag.range.last + 1
+        }
+        appendSegment(raw.substring(cursor), currentTime)
+        return words.joinToString(" ") to wordTimes
+    }
+
+    private fun parseTimestamp(tag: MatchResult): Long {
+        val minutes = tag.groupValues[1].toLong()
+        val seconds = tag.groupValues[2].toLong()
+        val fraction = tag.groupValues[3]
+        val millis = when (fraction.length) {
+            0 -> 0L
+            1 -> fraction.toLong() * 100L
+            2 -> fraction.toLong() * 10L
+            else -> fraction.take(3).toLong()
+        }
+        return minutes * 60_000L + seconds * 1_000L + millis
+    }
 }
 
 object LyricsTiming {
+    /** Interpolates between player position updates, respecting playback speed and track duration. */
+    fun interpolatePosition(positionMs: Long, elapsedMs: Long, speed: Float, durationMs: Long): Long {
+        val advance = (elapsedMs.coerceAtLeast(0L).toDouble() * speed.coerceAtLeast(0f).toDouble()).toLong()
+        val estimated = (positionMs.coerceAtLeast(0L) + advance).coerceAtLeast(0L)
+        return if (durationMs > 0L) estimated.coerceAtMost(durationMs) else estimated
+    }
 
     /** Index of the line being sung at [positionMs], or -1 before the first line. */
     fun activeIndex(lines: List<LyricLine>, positionMs: Long): Int {
@@ -83,29 +122,40 @@ object LyricsTiming {
     fun words(text: String): List<String> = text.split(' ', '\t').filter { it.isNotEmpty() }
 
     /**
-     * How much of each word has been "sung" (0f..1f) at [positionMs].
-     * LRCLIB only has line timing, so word timing is estimated: the line's singing time is shared
-     * between its words in proportion to their length. This gives a smooth karaoke sweep.
-     *
-     * [endMs] is when the next line starts (or a fallback). The sweep finishes slightly before it
-     * so the last word is fully lit before the line changes.
+     * Uses exact enhanced-LRC word stamps when available. For line-only LRC, it still estimates
+     * a sweep within the line interval because the source does not provide word-level timing.
      */
-    fun wordFills(words: List<String>, startMs: Long, endMs: Long, positionMs: Long): FloatArray {
-        val n = words.size
-        if (n == 0) return FloatArray(0)
+    fun wordFills(
+        words: List<String>,
+        startMs: Long,
+        endMs: Long,
+        positionMs: Long,
+        wordTimesMs: List<Long> = emptyList(),
+    ): FloatArray {
+        val count = words.size
+        if (count == 0) return FloatArray(0)
+        val fills = FloatArray(count)
+        if (wordTimesMs.size == count) {
+            for (i in 0 until count) {
+                val start = wordTimesMs[i].coerceIn(startMs, endMs)
+                val next = if (i + 1 < count) wordTimesMs[i + 1].coerceAtLeast(start + 1L) else endMs
+                val span = max(1L, next - start)
+                fills[i] = ((positionMs - start).toFloat() / span.toFloat()).coerceIn(0f, 1f)
+            }
+            return fills
+        }
+
         val span = max(1L, endMs - startMs)
         val sungSpan = max(1L, (span * 0.88f).toLong())
         val progress = ((positionMs - startMs).toFloat() / sungSpan.toFloat()).coerceIn(0f, 1f)
-
-        val weights = FloatArray(n) { (words[it].length + 1).toFloat() }
+        val weights = FloatArray(count) { (words[it].length + 1).toFloat() }
         val total = weights.sum()
-        val fills = FloatArray(n)
-        var acc = 0f
-        for (i in 0 until n) {
-            val a = acc / total
-            acc += weights[i]
-            val b = acc / total
-            fills[i] = if (b <= a) 1f else ((progress - a) / (b - a)).coerceIn(0f, 1f)
+        var accumulated = 0f
+        for (i in 0 until count) {
+            val from = accumulated / total
+            accumulated += weights[i]
+            val to = accumulated / total
+            fills[i] = if (to <= from) 1f else ((progress - from) / (to - from)).coerceIn(0f, 1f)
         }
         return fills
     }

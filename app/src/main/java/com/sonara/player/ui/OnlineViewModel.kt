@@ -7,6 +7,8 @@ import com.sonara.player.SonaraApp
 import com.sonara.player.data.JamendoAlbum
 import com.sonara.player.data.JamendoArtist
 import com.sonara.player.data.JamendoPlaylist
+import com.sonara.player.data.LocationRepository
+import com.sonara.player.data.MusicRegion
 import com.sonara.player.data.Track
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +45,9 @@ private fun Throwable.onlineMessage(): String = when (this) {
 
 class OnlineViewModel(app: Application) : AndroidViewModel(app) {
     private val repository = (app as SonaraApp).container.jamendo
+    private val locationRepository = LocationRepository(app)
+    private val _musicRegion = MutableStateFlow(MusicRegion.fromDeviceRegion())
+    val musicRegion: StateFlow<MusicRegion> = _musicRegion.asStateFlow()
     val isConfigured: Boolean get() = repository.isConfigured
 
     private val pageSize = 30
@@ -53,8 +58,8 @@ class OnlineViewModel(app: Application) : AndroidViewModel(app) {
     private val _latest = MutableStateFlow(PagedTracksState())
     val latest: StateFlow<PagedTracksState> = _latest.asStateFlow()
 
-    private val _filipino = MutableStateFlow(PagedTracksState())
-    val filipino: StateFlow<PagedTracksState> = _filipino.asStateFlow()
+    private val _regionalTracks = MutableStateFlow(PagedTracksState())
+    val regionalTracks: StateFlow<PagedTracksState> = _regionalTracks.asStateFlow()
 
     private val _forYou = MutableStateFlow(PagedTracksState(isLoading = false))
     val forYou: StateFlow<PagedTracksState> = _forYou.asStateFlow()
@@ -71,8 +76,8 @@ class OnlineViewModel(app: Application) : AndroidViewModel(app) {
     private val _artists = MutableStateFlow<CatalogueState<JamendoArtist>>(CatalogueState.Loading)
     val artists: StateFlow<CatalogueState<JamendoArtist>> = _artists.asStateFlow()
 
-    private val _filipinoArtists = MutableStateFlow<CatalogueState<JamendoArtist>>(CatalogueState.Loading)
-    val filipinoArtists: StateFlow<CatalogueState<JamendoArtist>> = _filipinoArtists.asStateFlow()
+    private val _regionalArtists = MutableStateFlow<CatalogueState<JamendoArtist>>(CatalogueState.Loading)
+    val regionalArtists: StateFlow<CatalogueState<JamendoArtist>> = _regionalArtists.asStateFlow()
 
     private val _playlists = MutableStateFlow<CatalogueState<JamendoPlaylist>>(CatalogueState.Loading)
     val playlists: StateFlow<CatalogueState<JamendoPlaylist>> = _playlists.asStateFlow()
@@ -81,18 +86,18 @@ class OnlineViewModel(app: Application) : AndroidViewModel(app) {
         if (isConfigured) {
             loadTrending()
             loadLatest()
-            loadFilipino()
+            loadRegionalTracks()
             loadAlbums()
             loadArtists()
-            loadFilipinoArtists()
+            loadRegionalArtists()
             loadPlaylists()
         } else {
             _trending.value = PagedTracksState(isLoading = false, error = "Add JAMENDO_CLIENT_ID to enable online discovery.")
             _latest.value = _trending.value
-            _filipino.value = _trending.value
+            _regionalTracks.value = _trending.value
             _albums.value = CatalogueState.Error("Online music is not configured.")
             _artists.value = CatalogueState.Error("Online music is not configured.")
-            _filipinoArtists.value = CatalogueState.Error("Online music is not configured.")
+            _regionalArtists.value = CatalogueState.Error("Online music is not configured.")
             _playlists.value = CatalogueState.Error("Online music is not configured.")
         }
     }
@@ -100,10 +105,10 @@ class OnlineViewModel(app: Application) : AndroidViewModel(app) {
     fun refresh() {
         loadTrending()
         loadLatest()
-        loadFilipino()
+        loadRegionalTracks()
         loadAlbums()
         loadArtists()
-        loadFilipinoArtists()
+        loadRegionalArtists()
         loadPlaylists()
     }
 
@@ -113,8 +118,28 @@ class OnlineViewModel(app: Application) : AndroidViewModel(app) {
     fun loadLatest() = loadPage(_latest, append = false) { limit, offset -> repository.newReleases(limit, offset) }
     fun loadMoreLatest() = loadPage(_latest, append = true) { limit, offset -> repository.newReleases(limit, offset) }
 
-    fun loadFilipino() = loadPage(_filipino, append = false) { limit, offset -> repository.filipinoTracks(limit, offset) }
-    fun loadMoreFilipino() = loadPage(_filipino, append = true) { limit, offset -> repository.filipinoTracks(limit, offset) }
+    fun loadRegionalTracks() {
+        val country = _musicRegion.value.countryIso3
+        loadPage(_regionalTracks, append = false) { limit, offset -> repository.regionalTracks(country, limit, offset) }
+    }
+    fun loadMoreRegionalTracks() {
+        val country = _musicRegion.value.countryIso3
+        loadPage(_regionalTracks, append = true) { limit, offset -> repository.regionalTracks(country, limit, offset) }
+    }
+
+    fun loadLocationRecommendations(onResult: (Result<String>) -> Unit) {
+        viewModelScope.launch {
+            val detected = locationRepository.detectMusicRegion()
+            if (detected == null) {
+                onResult(Result.failure(IllegalStateException("Sonara couldn't determine your country. Check that Location is enabled, then try again.")))
+                return@launch
+            }
+            _musicRegion.value = detected
+            loadRegionalTracks()
+            loadRegionalArtists()
+            onResult(Result.success(detected.displayName))
+        }
+    }
 
     fun loadForYou(seed: Track?) {
         if (seed == null || !seed.isOnline) {
@@ -153,14 +178,17 @@ class OnlineViewModel(app: Application) : AndroidViewModel(app) {
         when (section) {
             DiscoveryTrackSection.TRENDING -> loadTrending()
             DiscoveryTrackSection.LATEST -> loadLatest()
-            DiscoveryTrackSection.FILIPINO -> loadFilipino()
+            DiscoveryTrackSection.REGIONAL -> loadRegionalTracks()
             DiscoveryTrackSection.FOR_YOU -> _forYou.value = _forYou.value.copy(error = null)
         }
     }
 
     private fun loadAlbums() = loadCatalogue(_albums) { repository.popularAlbums(24) }
     private fun loadArtists() = loadCatalogue(_artists) { repository.popularArtists(24) }
-    private fun loadFilipinoArtists() = loadCatalogue(_filipinoArtists) { repository.filipinoArtists(24) }
+    private fun loadRegionalArtists() {
+        val country = _musicRegion.value.countryIso3
+        loadCatalogue(_regionalArtists) { repository.regionalArtists(country, 24) }
+    }
     private fun loadPlaylists() = loadCatalogue(_playlists) { repository.featuredPlaylists(16) }
 
     private fun <T> loadCatalogue(
@@ -210,4 +238,4 @@ class OnlineViewModel(app: Application) : AndroidViewModel(app) {
     }
 }
 
-enum class DiscoveryTrackSection { TRENDING, LATEST, FILIPINO, FOR_YOU }
+enum class DiscoveryTrackSection { TRENDING, LATEST, REGIONAL, FOR_YOU }

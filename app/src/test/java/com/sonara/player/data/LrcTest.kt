@@ -40,10 +40,32 @@ class LrcTest {
     }
 
     @Test
-    fun keepsEmptyInstrumentalLinesAndStripsWordStamps() {
+    fun keepsEmptyLinesAndRetainsEnhancedWordStamps() {
         val lines = Lrc.parse("[00:05.00]\n[00:06.00]<00:06.00>Hi <00:06.40>you")
         assertEquals("", lines[0].text)
         assertEquals("Hi you", lines[1].text)
+        assertEquals(listOf(6_000L, 6_400L), lines[1].wordTimesMs)
+    }
+
+    @Test
+    fun enhancedWordStampsDriveTheSweep() {
+        val fills = LyricsTiming.wordFills(
+            words = listOf("Hi", "you"),
+            startMs = 6_000L,
+            endMs = 7_000L,
+            positionMs = 6_200L,
+            wordTimesMs = listOf(6_000L, 6_400L),
+        )
+        assertEquals(0.5f, fills[0])
+        assertEquals(0f, fills[1])
+    }
+
+    @Test
+    fun playbackPositionInterpolationRespectsSpeedAndDuration() {
+        assertEquals(2_500L, LyricsTiming.interpolatePosition(2_000L, 500L, 1f, 10_000L))
+        assertEquals(2_250L, LyricsTiming.interpolatePosition(2_000L, 500L, 0.5f, 10_000L))
+        assertEquals(3_000L, LyricsTiming.interpolatePosition(2_900L, 500L, 1f, 3_000L))
+        assertEquals(2_000L, LyricsTiming.interpolatePosition(2_000L, -500L, 1f, 0L))
     }
 
     @Test

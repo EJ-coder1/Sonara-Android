@@ -122,58 +122,81 @@ class JamendoRepository(private val clientId: String) {
         return tracks("tracks/similar", limit, offset, "id" to numericId)
     }
 
-    /** Trending chart filtered by the artist's declared country (PHL = Philippines). */
-    suspend fun filipinoTracks(limit: Int = 30, offset: Int = 0): Result<List<Track>> = cached(
-        trackCache,
-        cacheKey("filipinoTracks", limit, offset),
-        trackTtlMs,
-    ) {
-        val chart = requestJson(
-            "charts/track",
-            listOf("country" to "PHL", "limit" to limit.toString(), "offset" to offset.toString()),
-        ).optJSONArray("results") ?: JSONArray()
-        val ids = (0 until chart.length()).mapNotNull { i ->
-            chart.optJSONObject(i)?.optString("id")?.takeIf { it.isNotBlank() }
+    /** Trending chart filtered by artists' declared country (ISO 3166-1 alpha-3). */
+    suspend fun regionalTracks(countryIso3: String, limit: Int = 30, offset: Int = 0): Result<List<Track>> {
+        val country = countryIso3.trim().uppercase()
+        if (!country.matches(Regex("[A-Z]{3}"))) {
+            return Result.failure(IllegalArgumentException("A valid three-letter country code is required."))
         }
-        if (ids.isEmpty()) emptyList()
-        else {
-            val byId = parseTracks(
-                requestJson(
-                    "tracks",
-                    listOf(
-                        "id" to ids.joinToString(" "),
-                        "type" to "single albumtrack",
-                        "limit" to ids.size.toString(),
-                        "imagesize" to "600",
-                    ),
-                )
-                    .optJSONArray("results") ?: JSONArray()
-            ).associateBy { it.id.removePrefix("jam:") }
-            ids.mapNotNull(byId::get)
+        return cached(
+            trackCache,
+            cacheKey("regionalTracks:$country", limit, offset),
+            trackTtlMs,
+        ) {
+            val chart = requestJson(
+                "charts/track",
+                listOf(
+                    "country" to country,
+                    "limit" to limit.coerceIn(1, 200).toString(),
+                    "offset" to offset.coerceAtLeast(0).toString(),
+                ),
+            ).optJSONArray("results") ?: JSONArray()
+            val ids = (0 until chart.length()).mapNotNull { i ->
+                chart.optJSONObject(i)?.optString("id")?.takeIf { it.isNotBlank() }
+            }
+            if (ids.isEmpty()) emptyList()
+            else {
+                val byId = parseTracks(
+                    requestJson(
+                        "tracks",
+                        listOf(
+                            "id" to ids.joinToString(" "),
+                            "type" to "single albumtrack",
+                            "limit" to ids.size.toString(),
+                            "imagesize" to "600",
+                        ),
+                    ).optJSONArray("results") ?: JSONArray()
+                ).associateBy { it.id.removePrefix("jam:") }
+                ids.mapNotNull(byId::get)
+            }
         }
     }
 
-    /** Artists who declared the Philippines as their reference location. */
-    suspend fun filipinoArtists(limit: Int = 24, offset: Int = 0): Result<List<JamendoArtist>> = cached(
-        artistCache,
-        cacheKey("filipinoArtists", limit, offset),
-        catalogueTtlMs,
-    ) {
-        parseArtists(
-            requestJson(
-                "artists/locations",
-                listOf(
-                    "location_country" to "PHL",
-                    "haslocation" to "true",
-                    "hasimage" to "true",
-                    "order" to "popularity_week",
-                    "limit" to limit.toString(),
-                    "offset" to offset.toString(),
-                ),
-            ).optJSONArray("results") ?: JSONArray(),
-            includeLocations = true,
-        )
+    /** Artists who declared [countryIso3] as their reference country. */
+    suspend fun regionalArtists(countryIso3: String, limit: Int = 24, offset: Int = 0): Result<List<JamendoArtist>> {
+        val country = countryIso3.trim().uppercase()
+        if (!country.matches(Regex("[A-Z]{3}"))) {
+            return Result.failure(IllegalArgumentException("A valid three-letter country code is required."))
+        }
+        return cached(
+            artistCache,
+            cacheKey("regionalArtists:$country", limit, offset),
+            catalogueTtlMs,
+        ) {
+            parseArtists(
+                requestJson(
+                    "artists/locations",
+                    listOf(
+                        "location_country" to country,
+                        "haslocation" to "true",
+                        "hasimage" to "true",
+                        "order" to "popularity_week",
+                        "limit" to limit.coerceIn(1, 200).toString(),
+                        "offset" to offset.coerceAtLeast(0).toString(),
+                    ),
+                ).optJSONArray("results") ?: JSONArray(),
+                includeLocations = true,
+            )
+        }
     }
+
+    /** Backwards-compatible Philippines shortcut. */
+    suspend fun filipinoTracks(limit: Int = 30, offset: Int = 0): Result<List<Track>> =
+        regionalTracks("PHL", limit, offset)
+
+    /** Backwards-compatible Philippines shortcut. */
+    suspend fun filipinoArtists(limit: Int = 24, offset: Int = 0): Result<List<JamendoArtist>> =
+        regionalArtists("PHL", limit, offset)
 
     suspend fun popularAlbums(limit: Int = 24, offset: Int = 0): Result<List<JamendoAlbum>> = albums(
         limit, offset, "popularity_week"

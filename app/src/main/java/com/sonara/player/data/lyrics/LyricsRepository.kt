@@ -51,47 +51,76 @@ class LyricsRepository(context: Context) {
     // ---------- lookup ----------
 
     private fun lookup(track: Track): LyricsState? {
-        val title = cleanTitle(track.title)
+        val rawTitle = track.title.trim()
+        val title = LyricsMatching.cleanTitle(rawTitle)
         val artist = track.artist.takeUnless { it.isBlank() || it.equals("Unknown artist", true) }
         val seconds = (track.durationMs / 1000L).toInt()
+        val album = track.album.takeUnless { it.isBlank() || it.equals("Unknown album", true) }
 
-        // 1) exact match on title + artist (+ album + length)
-        if (artist != null) {
-            val q = linkedMapOf("track_name" to title, "artist_name" to artist)
-            track.album.takeUnless { it.isBlank() || it.equals("Unknown album", true) }?.let { q["album_name"] = it }
-            if (seconds > 0) q["duration"] = seconds.toString()
-            val exact = getObject("https://lrclib.net/api/get?${query(q)}")
-            exact?.let { toState(it) }?.let { return it }
-
-            // 2) title + artist search
-            val list = getArray("https://lrclib.net/api/search?${query(mapOf("track_name" to title, "artist_name" to artist))}")
-            pick(list, seconds)?.let { return it }
-        }
-
-        // 3) free-text search on the title alone (file names like "Artist - Song")
-        val list = getArray("https://lrclib.net/api/search?${query(mapOf("q" to title))}")
-        return pick(list, seconds)
-    }
-
-    /** Prefers results with synced lyrics and a length within 3 seconds of the song. */
-    private fun pick(results: JSONArray?, seconds: Int): LyricsState? {
-        if (results == null) return null
-        var best: JSONObject? = null
-        var bestScore = Int.MIN_VALUE
-        for (i in 0 until results.length()) {
-            val o = results.optJSONObject(i) ?: continue
-            val hasSynced = o.optString("syncedLyrics", "").isNotBlank()
-            val hasPlain = o.optString("plainLyrics", "").isNotBlank()
-            if (!hasSynced && !hasPlain) continue
-            val diff = if (seconds > 0) abs(o.optDouble("duration", 0.0) - seconds) else 0.0
-            if (seconds > 0 && diff > 3.0) continue
-            val score = (if (hasSynced) 100 else 0) - diff.toInt()
-            if (score > bestScore) {
-                bestScore = score
-                best = o
+        // One precise lookup avoids a chain of slow near-duplicate requests. If it misses,
+        // the search endpoint below provides alternatives that are validated just as strictly.
+        if (artist != null && title.isNotBlank()) {
+            val exactParams = linkedMapOf("track_name" to rawTitle, "artist_name" to artist).apply {
+                if (album != null) put("album_name", album)
+                if (seconds > 0) put("duration", seconds.toString())
+            }
+            val exact = getObject("https://lrclib.net/api/get?${query(exactParams)}")
+            if (exact != null && matchesTrack(exact, rawTitle, artist, seconds)) {
+                toState(exact)?.let { return it }
             }
         }
-        return best?.let { toState(it) }
+
+        // Structured search first. A title-only fallback is allowed only after the same strict
+        // candidate checks, preventing lyrics for similarly named tracks by another artist.
+        val structured = if (artist != null) {
+            getArray("https://lrclib.net/api/search?${query(mapOf("track_name" to title, "artist_name" to LyricsMatching.cleanArtist(artist)))}")
+        } else null
+        pick(structured, rawTitle, artist, seconds)?.let { return it }
+
+        val queryText = listOfNotNull(artist, title).joinToString(" ")
+        val fallback = getArray("https://lrclib.net/api/search?${query(mapOf("q" to queryText))}")
+        return pick(fallback, rawTitle, artist, seconds)
+    }
+
+    /** Only accept candidates whose title/artist/version match. Duration is a ranking signal,
+     * not the sole identity check: 8 seconds is preferred; up to 30 seconds is a fallback. */
+    private fun pick(
+        results: JSONArray?,
+        requestedTitle: String,
+        requestedArtist: String?,
+        seconds: Int,
+    ): LyricsState? {
+        if (results == null) return null
+        data class Candidate(val deltaSeconds: Double, val state: LyricsState)
+        val candidates = ArrayList<Candidate>()
+        for (index in 0 until results.length()) {
+            val record = results.optJSONObject(index) ?: continue
+            if (!matchesTrack(record, requestedTitle, requestedArtist, seconds)) continue
+            val state = toState(record) ?: continue
+            val recordDuration = record.optDouble("duration", 0.0)
+            val delta = if (seconds > 0 && recordDuration > 0.0) abs(recordDuration - seconds) else 0.0
+            candidates += Candidate(delta, state)
+        }
+        if (candidates.isEmpty()) return null
+
+        // Prefer synced lyrics at close durations, then synced lyrics at a looser duration,
+        // and use plain lyrics only when no well-matched synced record exists.
+        val close = candidates.filter { it.deltaSeconds <= STRICT_DURATION_DELTA }.sortedBy { it.deltaSeconds }
+        close.firstOrNull { it.state is LyricsState.Synced }?.let { return it.state }
+        val relaxed = candidates.filter { it.deltaSeconds <= RELAXED_DURATION_DELTA }.sortedBy { it.deltaSeconds }
+        relaxed.firstOrNull { it.state is LyricsState.Synced }?.let { return it.state }
+        close.firstOrNull { it.state is LyricsState.Plain }?.let { return it.state }
+        relaxed.firstOrNull { it.state is LyricsState.Plain }?.let { return it.state }
+        return null
+    }
+
+    private fun matchesTrack(record: JSONObject, requestedTitle: String, requestedArtist: String?, seconds: Int): Boolean {
+        val candidateTitle = record.optString("trackName", "").ifBlank { record.optString("name", "") }
+        val candidateArtist = record.optString("artistName", "")
+        if (!LyricsMatching.matches(candidateTitle, candidateArtist, requestedTitle, requestedArtist)) return false
+        val candidateDuration = record.optDouble("duration", 0.0)
+        if (seconds > 0 && candidateDuration > 0.0 && abs(candidateDuration - seconds) > RELAXED_DURATION_DELTA) return false
+        return true
     }
 
     private fun toState(o: JSONObject): LyricsState? {
@@ -100,15 +129,6 @@ class LyricsRepository(context: Context) {
         if (synced.isNotEmpty()) return LyricsState.Synced(synced)
         val plain = o.optString("plainLyrics", "").trim()
         return if (plain.isNotEmpty()) LyricsState.Plain(plain) else null
-    }
-
-    /** Removes "(feat. ...)", "[Official Video]" and file-name noise that confuses searches. */
-    private fun cleanTitle(raw: String): String {
-        var t = raw.replace('_', ' ')
-        t = t.replace(Regex("""\s*[(\[][^)\]]*[)\]]"""), " ")
-        t = t.replace(Regex("""(?i)\b(official|lyric|lyrics|video|audio|hd|hq|4k)\b"""), " ")
-        t = t.replace(Regex("""\s+"""), " ").trim().trim('-').trim()
-        return t.ifBlank { raw.trim() }
     }
 
     // ---------- http ----------
@@ -126,8 +146,8 @@ class LyricsRepository(context: Context) {
     private fun request(url: String): String? {
         val conn = URL(url).openConnection() as HttpURLConnection
         try {
-            conn.connectTimeout = 8_000
-            conn.readTimeout = 10_000
+            conn.connectTimeout = 6_000
+            conn.readTimeout = 8_000
             conn.requestMethod = "GET"
             conn.setRequestProperty("Accept", "application/json")
             // LRCLIB asks apps to identify themselves.
@@ -175,7 +195,20 @@ class LyricsRepository(context: Context) {
         try {
             val o = JSONObject().put("t", System.currentTimeMillis())
             when (state) {
-                is LyricsState.Synced -> o.put("k", "synced").put("v", state.lines.joinToString("\n") { "[${stamp(it.timeMs)}]${it.text}" })
+                is LyricsState.Synced -> o.put("k", "synced").put(
+                    "v",
+                    state.lines.joinToString("\n") { line ->
+                        val words = LyricsTiming.words(line.text)
+                        val enhancedText = if (words.isNotEmpty() && line.wordTimesMs.size == words.size) {
+                            words.indices.joinToString(" ") { index ->
+                                "<${stamp(line.wordTimesMs[index])}>${words[index]}"
+                            }
+                        } else {
+                            line.text
+                        }
+                        "[${stamp(line.timeMs)}]$enhancedText"
+                    },
+                )
                 is LyricsState.Plain -> o.put("k", "plain").put("v", state.text)
                 LyricsState.NotFound -> o.put("k", "none")
                 else -> return
@@ -190,8 +223,8 @@ class LyricsRepository(context: Context) {
     private fun stamp(ms: Long): String {
         val m = ms / 60_000
         val s = (ms % 60_000) / 1000
-        val cs = (ms % 1000) / 10
-        return "%02d:%02d.%02d".format(m, s, cs)
+        val millis = ms % 1000
+        return "%02d:%02d.%03d".format(m, s, millis)
     }
 
     private fun trimCache() {
@@ -209,6 +242,8 @@ class LyricsRepository(context: Context) {
         MessageDigest.getInstance("SHA-1").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }
 
     private companion object {
+        const val STRICT_DURATION_DELTA = 8.0
+        const val RELAXED_DURATION_DELTA = 30.0
         const val DAY_MS = 24L * 60 * 60 * 1000
         const val MAX_FILES = 300
         const val MAX_BODY_CHARS = 600_000

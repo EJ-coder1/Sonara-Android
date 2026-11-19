@@ -1,5 +1,7 @@
 package com.sonara.player.ui.online
 
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Refresh
@@ -33,12 +36,17 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -91,10 +99,32 @@ fun OnlineScreen(
 ) {
     val player = LocalPlayer.current
     val showMessage = LocalMessage.current
+    val context = LocalContext.current
+    val region by onlineVm.musicRegion.collectAsStateWithLifecycle()
+    val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            onlineVm.loadLocationRecommendations { result ->
+                result.onSuccess { showMessage("Loading regional music for $it") }
+                    .onFailure { showMessage(it.message ?: "Couldn't update regional music.") }
+            }
+        } else {
+            showMessage("Location permission was denied. Sonara will keep using your device region.")
+        }
+    }
+    val requestLocation: () -> Unit = {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            onlineVm.loadLocationRecommendations { result ->
+                result.onSuccess { showMessage("Loading regional music for $it") }
+                    .onFailure { showMessage(it.message ?: "Couldn't update regional music.") }
+            }
+        } else {
+            locationPermission.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+    }
     val recents by appVm.recents.collectAsStateWithLifecycle()
     val trending by onlineVm.trending.collectAsStateWithLifecycle()
     val latest by onlineVm.latest.collectAsStateWithLifecycle()
-    val filipino by onlineVm.filipino.collectAsStateWithLifecycle()
+    val regionalTracks by onlineVm.regionalTracks.collectAsStateWithLifecycle()
     val forYou by onlineVm.forYou.collectAsStateWithLifecycle()
     val selectedMood by onlineVm.mood.collectAsStateWithLifecycle()
     // Snapshot the delegated StateFlow value into a stable local for LazyList item lambdas.
@@ -102,7 +132,7 @@ fun OnlineScreen(
     val moodTracks by onlineVm.moodTracks.collectAsStateWithLifecycle()
     val albums by onlineVm.albums.collectAsStateWithLifecycle()
     val artists by onlineVm.artists.collectAsStateWithLifecycle()
-    val filipinoArtists by onlineVm.filipinoArtists.collectAsStateWithLifecycle()
+    val regionalArtists by onlineVm.regionalArtists.collectAsStateWithLifecycle()
     val playlists by onlineVm.playlists.collectAsStateWithLifecycle()
 
     val onlineRecents = remember(recents) { recents.filter { it.isOnline }.take(20) }
@@ -151,7 +181,7 @@ fun OnlineScreen(
         item {
             DiscoveryHero(
                 title = "A world of independent music",
-                subtitle = "Explore fresh tracks, artists and playlists from Jamendo.",
+                subtitle = "Explore independent tracks, artists and playlists from Jamendo worldwide.",
                 action = onOpenSearch,
             )
         }
@@ -206,19 +236,41 @@ fun OnlineScreen(
             }
 
             item {
-                SectionHeader("Filipino & Philippines-based", subtitle = "Tracks charted for artists who declare the Philippines as their country")
-            }
-            item {
-                TrackSection(
-                    state = filipino,
-                    onRetry = onlineVm::loadFilipino,
-                    onLoadMore = onlineVm::loadMoreFilipino,
-                    onPlay = { tracks, index -> player.playQueue(tracks, index) },
-                    emptyMessage = "Jamendo has no Philippines chart results available right now.",
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Music in your country", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        Text("Popular in ${region.displayName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    OutlinedButton(onClick = requestLocation) {
+                        Icon(Icons.Rounded.MyLocation, contentDescription = null, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Use location")
+                    }
+                }
+                Text(
+                    "Uses your device region by default. Approximate location can update country charts; only the country code is sent to Jamendo.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 20.dp),
                 )
             }
             item {
-                when (val state = filipinoArtists) {
+                TrackSection(
+                    state = regionalTracks,
+                    onRetry = onlineVm::loadRegionalTracks,
+                    onLoadMore = onlineVm::loadMoreRegionalTracks,
+                    onPlay = { tracks, index -> player.playQueue(tracks, index) },
+                    emptyMessage = "Jamendo has no chart results for ${region.displayName} right now.",
+                )
+            }
+            item {
+                SectionHeader("Artists in ${region.displayName}", subtitle = "Artists who list this country as their location")
+            }
+            item {
+                when (val state = regionalArtists) {
                     CatalogueState.Loading -> ShimmerRow(count = 3)
                     is CatalogueState.Error -> MessageCard(state.message)
                     is CatalogueState.Ready<JamendoArtist> -> if (state.items.isNotEmpty()) {

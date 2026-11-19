@@ -1,5 +1,7 @@
 package com.sonara.player.ui.search
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -51,6 +54,8 @@ import com.sonara.player.ui.Moods
 import com.sonara.player.data.JamendoAlbum
 import com.sonara.player.data.JamendoArtist
 import com.sonara.player.data.JamendoPlaylist
+import com.sonara.player.data.GlobalCatalogState
+import com.sonara.player.data.GlobalCatalogTrack
 import com.sonara.player.ui.OnlineState
 import com.sonara.player.ui.SearchViewModel
 import com.sonara.player.ui.SongsState
@@ -63,6 +68,7 @@ import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material3.Surface
 import coil.compose.AsyncImage
@@ -75,6 +81,7 @@ fun SearchScreen(
 ) {
     val player = LocalPlayer.current
     val focus = LocalFocusManager.current
+    val context = LocalContext.current
     val showMessage = com.sonara.player.ui.components.LocalMessage.current
 
     val query by vm.query.collectAsStateWithLifecycle()
@@ -82,6 +89,7 @@ fun SearchScreen(
     val onlineAlbums by vm.onlineAlbums.collectAsStateWithLifecycle()
     val onlineArtists by vm.onlineArtists.collectAsStateWithLifecycle()
     val onlinePlaylists by vm.onlinePlaylists.collectAsStateWithLifecycle()
+    val worldwideCatalog by vm.worldwideCatalog.collectAsStateWithLifecycle()
     val songsState by appVm.songs.collectAsStateWithLifecycle()
     val playerState by player.state.collectAsStateWithLifecycle()
     val history by appVm.searchHistory.collectAsStateWithLifecycle()
@@ -150,7 +158,7 @@ fun SearchScreen(
             item(key = "hint") {
                 SectionHeader(
                     "Start typing to search",
-                    subtitle = if (vm.isConfigured) "Searches your phone and free music online." else "Searches the music on your phone.",
+                    subtitle = "Search your phone, licensed independent music, and worldwide store catalogs.",
                 )
             }
             if (history.isNotEmpty()) {
@@ -197,6 +205,58 @@ fun SearchScreen(
                 }
             }
         } else {
+            // ----- official worldwide music catalogs and provider handoffs -----
+            item(key = "worldwide-services-title") {
+                SectionHeader("Search worldwide music", subtitle = "Open results in the official music service")
+            }
+            item(key = "worldwide-services") {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(listOf("YouTube Music", "Spotify", "Apple Music")) { service ->
+                        AssistChip(
+                            onClick = {
+                                val encoded = Uri.encode(q)
+                                val url = when (service) {
+                                    "YouTube Music" -> "https://music.youtube.com/search?q=$encoded"
+                                    "Spotify" -> "https://open.spotify.com/search/$encoded"
+                                    else -> "https://music.apple.com/search?term=$encoded"
+                                }
+                                openMusicUrl(context, url) { showMessage("Couldn't open $service. Check that a browser is installed.") }
+                            },
+                            label = { Text(service) },
+                            leadingIcon = { Icon(Icons.Rounded.OpenInNew, contentDescription = null) },
+                        )
+                    }
+                }
+            }
+            item(key = "worldwide-catalog-title") {
+                SectionHeader(
+                    "Worldwide catalog",
+                    subtitle = "Apple/iTunes song listings from PH, US, UK, Korea and your device storefront. Full playback opens the official store.",
+                )
+            }
+            when (val global = worldwideCatalog) {
+                GlobalCatalogState.Idle, GlobalCatalogState.Loading -> item(key = "worldwide-catalog-loading") { ShimmerRow() }
+                is GlobalCatalogState.Error -> item(key = "worldwide-catalog-error") {
+                    MessageCard(global.message, actionLabel = "Retry", onAction = vm::retry)
+                }
+                is GlobalCatalogState.Ready -> {
+                    if (global.tracks.isEmpty()) {
+                        item(key = "worldwide-catalog-empty") {
+                            MessageCard("No store-catalog matches for \"$q\". Try another title or artist.", icon = Icons.Rounded.SearchOff)
+                        }
+                    } else {
+                        items(global.tracks, key = { it.id }) { hit ->
+                            ExternalCatalogRow(hit) {
+                                openMusicUrl(context, hit.storeUrl) { showMessage("Couldn't open the official store link.") }
+                            }
+                        }
+                    }
+                }
+            }
+
             // ----- on this phone -----
             if (localMatches.isNotEmpty()) {
                 item(key = "local-header") { SectionHeader("On your phone") }
@@ -270,13 +330,54 @@ fun SearchScreen(
                 }
             } else if (localMatches.isEmpty()) {
                 item(key = "none") {
-                    MessageCard("No songs on your phone match \"$q\".", icon = Icons.Rounded.SearchOff)
+                    MessageCard("Jamendo is not configured. Worldwide catalog results are shown above; add JAMENDO_CLIENT_ID to enable in-app independent-music streaming.", icon = Icons.Rounded.SearchOff)
                 }
             }
         }
     }
 }
 
+
+private fun openMusicUrl(context: android.content.Context, url: String, onFailure: () -> Unit) {
+    runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    }.onFailure { onFailure() }
+}
+
+@Composable
+private fun ExternalCatalogRow(track: GlobalCatalogTrack, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Rounded.LibraryMusic, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(track.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                val duration = if (track.durationMs > 0L) {
+                    val seconds = track.durationMs / 1_000L
+                    "${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}"
+                } else null
+                Text(
+                    listOf(track.artist, track.album.takeIf { it.isNotBlank() }, track.storefront, duration)
+                        .filterNotNull().joinToString(" • "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+                Text("Open in Apple Music / iTunes", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            }
+            Icon(Icons.Rounded.OpenInNew, contentDescription = "Open ${track.title} in Apple Music", tint = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
 
 @Composable
 private fun SearchCatalogueRow(

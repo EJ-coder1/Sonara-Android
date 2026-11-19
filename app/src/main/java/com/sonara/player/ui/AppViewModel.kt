@@ -10,6 +10,8 @@ import com.sonara.player.data.MixBuilder
 import com.sonara.player.data.JamendoAlbum
 import com.sonara.player.data.JamendoArtist
 import com.sonara.player.data.JamendoPlaylist
+import com.sonara.player.data.GlobalCatalogState
+import com.sonara.player.data.MusicRegion
 import com.sonara.player.data.OfflinePrefs
 import com.sonara.player.data.Playlist
 import com.sonara.player.data.ThemeMode
@@ -234,7 +236,8 @@ val Moods = listOf(
 )
 
 class HomeViewModel(app: Application) : AndroidViewModel(app) {
-    private val repo = (app as SonaraApp).container.jamendo
+    private val container = (app as SonaraApp).container
+    private val repo = container.jamendo
 
     val isConfigured: Boolean get() = repo.isConfigured
 
@@ -291,7 +294,10 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
 @OptIn(FlowPreview::class)
 class SearchViewModel(app: Application) : AndroidViewModel(app) {
-    private val repo = (app as SonaraApp).container.jamendo
+    private val container = (app as SonaraApp).container
+    private val repo = container.jamendo
+    private val worldwideCatalog = container.worldwideMusicCatalog
+    private val primaryStorefront = MusicRegion.fromDeviceRegion().countryIso2
 
     val isConfigured: Boolean get() = repo.isConfigured
 
@@ -310,10 +316,13 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
     private val _onlinePlaylists = MutableStateFlow<CatalogueState<JamendoPlaylist>>(CatalogueState.Ready(emptyList()))
     val onlinePlaylists: StateFlow<CatalogueState<JamendoPlaylist>> = _onlinePlaylists.asStateFlow()
 
+    private val _worldwideCatalog = MutableStateFlow<GlobalCatalogState>(GlobalCatalogState.Idle)
+    val worldwideCatalog: StateFlow<GlobalCatalogState> = _worldwideCatalog.asStateFlow()
+
     init {
         viewModelScope.launch {
             _query
-                .debounce(450)
+                .debounce(650)
                 .map { it.trim() }
                 .distinctUntilChanged()
                 .collectLatest { q -> runSearch(q) }
@@ -329,39 +338,56 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun runSearch(q: String) {
-        if (q.length < 2 || !repo.isConfigured) {
+        if (q.length < 2) {
             _online.value = OnlineState.Idle
             _onlineAlbums.value = CatalogueState.Ready(emptyList())
             _onlineArtists.value = CatalogueState.Ready(emptyList())
             _onlinePlaylists.value = CatalogueState.Ready(emptyList())
+            _worldwideCatalog.value = GlobalCatalogState.Idle
             return
         }
-        _online.value = OnlineState.Loading
-        _onlineAlbums.value = CatalogueState.Loading
-        _onlineArtists.value = CatalogueState.Loading
-        _onlinePlaylists.value = CatalogueState.Loading
 
+        _worldwideCatalog.value = GlobalCatalogState.Loading
         coroutineScope {
-            val tracksCall = async { repo.search(q, 40) }
-            val albumsCall = async { repo.searchAlbums(q, 20) }
-            val artistsCall = async { repo.searchArtists(q, 20) }
-            val playlistsCall = async { repo.searchPlaylists(q, 20) }
+            val globalCall = async { worldwideCatalog.search(q, primaryStorefront) }
 
-            _online.value = tracksCall.await().fold(
-                onSuccess = { OnlineState.Ready(it) },
-                onFailure = { OnlineState.Error(it.friendlyMessage()) },
-            )
-            _onlineAlbums.value = albumsCall.await().fold(
-                onSuccess = { CatalogueState.Ready(it) },
-                onFailure = { CatalogueState.Error(it.friendlyMessage()) },
-            )
-            _onlineArtists.value = artistsCall.await().fold(
-                onSuccess = { CatalogueState.Ready(it) },
-                onFailure = { CatalogueState.Error(it.friendlyMessage()) },
-            )
-            _onlinePlaylists.value = playlistsCall.await().fold(
-                onSuccess = { CatalogueState.Ready(it) },
-                onFailure = { CatalogueState.Error(it.friendlyMessage()) },
+            if (repo.isConfigured) {
+                _online.value = OnlineState.Loading
+                _onlineAlbums.value = CatalogueState.Loading
+                _onlineArtists.value = CatalogueState.Loading
+                _onlinePlaylists.value = CatalogueState.Loading
+
+                val tracksCall = async { repo.search(q, 40) }
+                val albumsCall = async { repo.searchAlbums(q, 20) }
+                val artistsCall = async { repo.searchArtists(q, 20) }
+                val playlistsCall = async { repo.searchPlaylists(q, 20) }
+
+                _online.value = tracksCall.await().fold(
+                    onSuccess = { OnlineState.Ready(it) },
+                    onFailure = { OnlineState.Error(it.friendlyMessage()) },
+                )
+                _onlineAlbums.value = albumsCall.await().fold(
+                    onSuccess = { CatalogueState.Ready(it) },
+                    onFailure = { CatalogueState.Error(it.friendlyMessage()) },
+                )
+                _onlineArtists.value = artistsCall.await().fold(
+                    onSuccess = { CatalogueState.Ready(it) },
+                    onFailure = { CatalogueState.Error(it.friendlyMessage()) },
+                )
+                _onlinePlaylists.value = playlistsCall.await().fold(
+                    onSuccess = { CatalogueState.Ready(it) },
+                    onFailure = { CatalogueState.Error(it.friendlyMessage()) },
+                )
+            } else {
+                _online.value = OnlineState.Idle
+                _onlineAlbums.value = CatalogueState.Ready(emptyList())
+                _onlineArtists.value = CatalogueState.Ready(emptyList())
+                _onlinePlaylists.value = CatalogueState.Ready(emptyList())
+            }
+
+            _worldwideCatalog.value = globalCall.await().fold(
+                onSuccess = { GlobalCatalogState.Ready(it) },
+                onFailure = { GlobalCatalogState.Error(it.friendlyMessage()) },
             )
         }
     }

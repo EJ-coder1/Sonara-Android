@@ -5,6 +5,7 @@ import android.os.SystemClock
 import com.sonara.player.data.JamendoRepository
 import com.sonara.player.data.LibraryStore
 import com.sonara.player.data.LocalMusicRepository
+import com.sonara.player.data.WorldwideMusicCatalog
 import com.sonara.player.data.SessionWindow
 import com.sonara.player.data.SessionSnapshot
 import com.sonara.player.data.cacheKey
@@ -27,6 +28,8 @@ class AppContainer(private val app: Application) {
     val store = LibraryStore(app)
     val local = LocalMusicRepository(app)
     val jamendo = JamendoRepository(BuildConfig.JAMENDO_CLIENT_ID)
+    /** Global store metadata search; full in-app streaming remains limited to authorized stream sources. */
+    val worldwideMusicCatalog = WorldwideMusicCatalog()
     val player = PlayerController(app)
     val fx = AudioEffectsManager(store)
     val lyrics = LyricsRepository(app)

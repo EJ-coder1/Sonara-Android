@@ -26,7 +26,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -34,7 +33,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -53,7 +51,7 @@ private val Dim = Color.White.copy(alpha = 0.38f)
  * Lyrics that follow the song. The line being sung is large and fills word by word (a karaoke
  * sweep); other lines are dim. Tap a line to jump to it.
  *
- * LRCLIB supplies line timing, so the word sweep inside a line is an estimate.
+ * Enhanced LRC word stamps are used when present; otherwise the word sweep inside a line is estimated.
  *
  * @param positionMs playback position from the player (updates a few times a second)
  * @param offsetMs user sync offset: positive = lyrics later
@@ -141,21 +139,42 @@ private fun PlainLyrics(text: String, scalePercent: Int) {
     }
 }
 
-/**
- * Position that keeps moving smoothly between the player's updates, so the word sweep is fluid.
- * It re-anchors to the real position every time the player reports one, so it never drifts.
- */
+/** One interpolated clock drives both the active line and its word-by-word sweep. */
+private class LyricsPlaybackClock {
+    val positionMs = mutableStateOf(0L)
+    val activeIndex = mutableStateOf(-1)
+}
+
 @Composable
-private fun rememberSmoothPosition(positionMs: Long, isPlaying: Boolean, speed: Float): State<Long> =
-    produceState(initialValue = positionMs, positionMs, isPlaying, speed) {
-        value = positionMs
-        if (!isPlaying) return@produceState
-        val startedAt = SystemClock.elapsedRealtime()
+private fun rememberLyricsPlaybackClock(
+    lines: List<LyricLine>,
+    positionMs: Long,
+    isPlaying: Boolean,
+    speed: Float,
+    durationMs: Long,
+    offsetMs: Int,
+): LyricsPlaybackClock {
+    val clock = remember(lines) { LyricsPlaybackClock() }
+    LaunchedEffect(lines, positionMs, isPlaying, speed, durationMs, offsetMs) {
+        fun update(rawPosition: Long) {
+            val nonNegative = rawPosition.coerceAtLeast(0L)
+            val bounded = if (durationMs > 0L) nonNegative.coerceAtMost(durationMs) else nonNegative
+            clock.positionMs.value = bounded
+            clock.activeIndex.value = LyricsTiming.activeIndex(lines, bounded - offsetMs)
+        }
+
+        update(positionMs)
+        if (!isPlaying) return@LaunchedEffect
+
+        val anchor = SystemClock.elapsedRealtime()
         while (true) {
             androidx.compose.runtime.withFrameNanos { }
-            value = positionMs + ((SystemClock.elapsedRealtime() - startedAt) * speed).toLong()
+            val elapsed = (SystemClock.elapsedRealtime() - anchor).coerceAtLeast(0L)
+            update(LyricsTiming.interpolatePosition(positionMs, elapsed, speed, durationMs))
         }
     }
+    return clock
+}
 
 @Composable
 private fun SyncedLyrics(
@@ -168,9 +187,8 @@ private fun SyncedLyrics(
     scalePercent: Int,
     onSeek: (Long) -> Unit,
 ) {
-    val smooth = rememberSmoothPosition(positionMs, isPlaying, speed)
-    // Which line is active only needs the coarse position; the fine position drives the sweep.
-    val activeIndex = LyricsTiming.activeIndex(lines, positionMs - offsetMs)
+    val clock = rememberLyricsPlaybackClock(lines, positionMs, isPlaying, speed, durationMs, offsetMs)
+    val activeIndex by clock.activeIndex
     val listState = rememberLazyListState()
     val scale = scalePercent / 100f
 
@@ -200,7 +218,7 @@ private fun SyncedLyrics(
                 isActive = isActive,
                 isPast = index < activeIndex,
                 endMs = LyricsTiming.lineEnd(lines, index, durationMs),
-                smoothPosition = smooth,
+                smoothPosition = clock.positionMs,
                 offsetMs = offsetMs,
                 scale = scale,
                 onClick = { onSeek((line.timeMs + offsetMs).coerceAtLeast(0L)) },
@@ -244,7 +262,7 @@ private fun LyricRow(
         text = if (isActive && line.text.isNotBlank()) {
             // Reading the smooth position HERE (not in the parent) means only this row redraws every frame.
             val pos = smoothPosition.value - offsetMs
-            val fills = LyricsTiming.wordFills(words, line.timeMs, endMs, pos)
+            val fills = LyricsTiming.wordFills(words, line.timeMs, endMs, pos, line.wordTimesMs)
             buildAnnotatedString {
                 words.forEachIndexed { i, word ->
                     withStyle(SpanStyle(color = lerp(Dim, Bright, fills[i]))) { append(word) }

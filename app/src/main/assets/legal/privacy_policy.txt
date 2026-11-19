@@ -1,12 +1,12 @@
 # Privacy Policy
 
-Last updated: [DATE]
+Last updated: November 19, 2026
 
-Sonara ("the app", "we") is a music player developed by [YOUR NAME OR COMPANY]. This policy explains what the app does with information. In short: we do not run any servers for this app, we do not have user accounts, and we do not collect, sell or share your personal information.
+Sonara ("the app", "we") is a music player developed by [YOUR NAME OR COMPANY]. This policy explains what the app does with information. We do not operate user accounts, advertising, analytics or our own music servers. Optional online and location-based features send limited requests to the providers described below.
 
 ## 1. Information the app does not collect
 
-Sonara does not require you to create an account. It does not collect your name, email address, phone number, contacts, location, advertising ID, photos, or device identifiers. It does not contain ads, analytics or crash-reporting tools.
+Sonara does not require an account and does not ask for your name, email address, phone number or contacts. It does not access your advertising ID or photos and does not include ads, analytics or crash-reporting tools. Approximate location is requested only when you tap "Use location" for country-level music recommendations. Sonara does not request precise or background location.
 
 ## 2. Music on your phone
 
@@ -16,9 +16,13 @@ If you allow access to music and audio files, the app reads the title, artist, a
 
 The app saves the following on your device only: your liked songs, playlists, recently played list, and settings such as theme. For online tracks, this includes the track title, artist, picture address and stream address so your lists keep working. This data stays on your device. You can remove it at any time in Settings > Delete all my data, or by clearing the app's storage or uninstalling the app. To let you continue where you left off, the app also saves your last queue and playing position on your device; you can turn this off in Settings > Downloads and storage.
 
-## 4. Free music from Jamendo and optional lyrics (internet use)
+## 4. Online music, regional recommendations and optional lyrics
 
-The app can stream free, Creative Commons-licensed music provided by Jamendo (jamendo.com). When you open Home, browse a mood or search, the app sends a request directly from your phone to Jamendo's servers. The request includes what you are asking for (for example a search word or mood) and, as with any internet connection, your IP address and basic technical details such as your device's app version. When you play an online track, your phone streams the audio and artwork from Jamendo. We do not receive or store these requests. Jamendo handles this information under its own privacy policy, available at jamendo.com.
+The app can stream music from independent artists through Jamendo (jamendo.com). When you browse discovery sections, search Jamendo, or play an online track, your phone sends the relevant catalogue or streaming request directly to Jamendo. Requests include the information needed for the feature (such as a search word, mood or country code) and, as with any internet connection, your IP address and basic technical details. Jamendo handles this information under its own privacy policy and terms.
+
+The Search screen can also search Apple/iTunes song-catalog metadata across the storefront for your device region and selected additional storefronts (Philippines, United States, United Kingdom and South Korea). The search term and storefront country codes are sent to Apple over HTTPS. Sonara displays catalog text and the official store link; it does not use Apple preview audio or extract audio from Apple Music. Tapping a result opens its Apple Music/iTunes page. Separate YouTube Music, Spotify and Apple Music search chips open the relevant official app or website; the search phrase is then handled by that service under its own privacy policy and terms.
+
+Regional recommendations are optional. Sonara starts with the country in your device region settings (using the Philippines if no country is set). Only after you tap "Use location" does Android request approximate foreground location permission. Sonara uses the location result to determine a country and sends only that country code to Jamendo for regional charts and artist discovery. Sonara does not send latitude/longitude coordinates to Jamendo and does not save location coordinates. Android location and geocoding services used to resolve the country may process the location request under their own terms. You can deny or later revoke the permission in Android Settings; the app will continue using the device region.
 
 If you turn on Lyrics in Settings > Player (it is off by default), the app looks up lyrics on LRCLIB (lrclib.net) when you open the lyrics view for a song. The request contains that song's title, artist, album and length, plus your IP address as with any internet connection. Nothing else about you or your music is sent. Lyrics are saved on your device so the same song is not requested twice, and you can clear them in Settings. LRCLIB handles requests under its own terms, available at lrclib.net. Lyrics are shown for personal reading only and are not stored or shared by us.
 
@@ -30,26 +34,27 @@ If you choose Share on a track, your phone's share menu opens. What happens next
 
 - Music and audio (READ_MEDIA_AUDIO, or storage on older Android versions): to find and play the songs on your phone.
 - Notifications: to show playback controls in the notification shade and on the lock screen. This is optional.
-- Internet and network state: to stream free music and show artwork.
+- Internet and network state: to stream music and show artwork.
+- Approximate location (ACCESS_COARSE_LOCATION): optional; requested only when you tap "Use location" to show country-level recommendations. Precise and background location are not requested.
 - Foreground service (media playback) and wake lock: to keep music playing when the screen is off or you leave the app.
 
 You can change these permissions at any time in your phone's Settings.
 
 ## 6. Sharing
 
-We do not sell, rent or share personal information, because we do not collect it. The only third parties involved are Jamendo and, only if you turn on Lyrics, LRCLIB, as described in section 4.
+We do not sell personal information. Sonara does not operate its own account or music servers. When you use Jamendo features, your phone communicates directly with Jamendo. When you search the worldwide catalog, your phone communicates directly with Apple/iTunes using the search term and storefront codes. When you open an external provider search, the selected provider receives the search phrase after you tap its chip. When you opt into regional recommendations, the country code derived from approximate location is included in the Jamendo request. When you enable Lyrics, your phone communicates directly with LRCLIB. These providers process requests under their own privacy policies.
 
 ## 7. Children
 
-Sonara is a general audience music player. It does not knowingly collect personal information from anyone, including children. Some music on Jamendo may contain mature themes; parents may want to supervise younger children.
+Sonara is a general audience music player and does not require users to submit account details. Optional features, including regional recommendations, should be used by a parent or guardian on a child's device when appropriate. Some music on Jamendo may contain mature themes; parents may want to supervise younger children.
 
 ## 8. Security
 
-Data saved by the app stays inside the app's private storage on your device. Connections to Jamendo and LRCLIB use HTTPS.
+Data saved by the app stays inside the app's private storage on your device. Connections to Jamendo, Apple/iTunes and LRCLIB use HTTPS. External provider links also use HTTPS.
 
 ## 9. Your choices and rights
 
-Because we do not hold your data, there is nothing for us to access, correct or delete on our side. You control everything stored on your device as described in section 3. If you have questions about your privacy, contact us at the address below.
+Sonara does not store your location coordinates or maintain an account about you. You can deny or revoke location permission in Android Settings, and you can clear local app data as described in section 3. Requests already sent to Jamendo, Apple/iTunes, LRCLIB or an external music provider are handled under those providers' own policies. If you have questions about Sonara's privacy practices, contact us at the address below.
 
 ## 10. Changes to this policy
 
