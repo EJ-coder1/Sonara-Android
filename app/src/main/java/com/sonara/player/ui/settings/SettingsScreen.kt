@@ -134,7 +134,10 @@ fun SettingsScreen(
 
             item {
                 SettingsGroup("Appearance", Icons.Rounded.Palette, Modifier.fadeSlideIn(1, seen, motion)) {
-                    ThemeModePicker(themeMode) { appVm.setThemeMode(it) }
+                    ThemeModePicker(
+                        selected = themeMode,
+                        onSelect = { selectedMode -> appVm.setThemeMode(selectedMode) },
+                    )
                     SettingsItem(
                         icon = Icons.Rounded.Palette,
                         title = "Theme Studio",

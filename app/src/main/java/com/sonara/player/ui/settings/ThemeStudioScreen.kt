@@ -208,7 +208,10 @@ fun ThemeStudioScreen(
 
             item {
                 SettingsGroup("Style", Icons.Rounded.AutoAwesome, Modifier.fadeSlideIn(2, seen, motion)) {
-                    ThemeModePicker(themeMode) { appVm.setThemeMode(it) }
+                    ThemeModePicker(
+                        selected = themeMode,
+                        onSelect = { selectedMode -> appVm.setThemeMode(selectedMode) },
+                    )
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         SettingsSwitchItem(
                             icon = Icons.Rounded.Palette,
@@ -379,6 +382,22 @@ private fun LiveThemePreview(
 }
 
 @Composable
+private fun PaletteSelectionCheck(accent: Accent, selected: Boolean) {
+    AnimatedVisibility(
+        visible = selected,
+        enter = scaleIn(spring(dampingRatio = 0.5f)) + fadeIn(),
+        exit = scaleOut() + fadeOut(),
+    ) {
+        Icon(
+            Icons.Rounded.Check,
+            contentDescription = "${accent.label} selected",
+            tint = Color.White,
+            modifier = Modifier.size(26.dp),
+        )
+    }
+}
+
+@Composable
 private fun PaletteChip(
     accent: Accent,
     selected: Boolean,
@@ -412,13 +431,7 @@ private fun PaletteChip(
                 .alpha(if (enabled) 1f else 0.4f),
             contentAlignment = Alignment.Center,
         ) {
-            AnimatedVisibility(
-                visible = selected,
-                enter = scaleIn(spring(dampingRatio = 0.5f)) + fadeIn(),
-                exit = scaleOut() + fadeOut(),
-            ) {
-                Icon(Icons.Rounded.Check, contentDescription = "${accent.label} selected", tint = Color.White, modifier = Modifier.size(26.dp))
-            }
+            PaletteSelectionCheck(accent = accent, selected = selected)
             if (accent == Accent.CUSTOM && !selected) {
                 Icon(Icons.Rounded.Colorize, contentDescription = null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(24.dp))
             }
