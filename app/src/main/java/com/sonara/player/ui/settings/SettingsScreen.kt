@@ -37,6 +37,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Waves
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,6 +47,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,6 +63,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sonara.player.BuildConfig
 import com.sonara.player.data.AppIcon
 import com.sonara.player.data.downloads.DownloadStatus
+import com.sonara.player.playback.CrossfadeMath
 import com.sonara.player.playback.PlayCache
 import com.sonara.player.ui.AppViewModel
 import com.sonara.player.ui.components.LocalDownloads
@@ -73,6 +76,7 @@ import com.sonara.player.util.AppIconManager
 import com.sonara.player.util.AppInfo
 import com.sonara.player.util.BatteryOptimization
 import com.sonara.player.util.formatBytes
+import kotlin.math.roundToInt
 
 @Composable
 fun SettingsScreen(
@@ -88,6 +92,9 @@ fun SettingsScreen(
     val themeMode by appVm.themeMode.collectAsStateWithLifecycle()
     val prefs by appVm.uiPrefs.collectAsStateWithLifecycle()
     val offline by appVm.offlinePrefs.collectAsStateWithLifecycle()
+    val crossfade by appVm.crossfade.collectAsStateWithLifecycle()
+    // The slider keeps its own value while dragging and saves when the finger lifts.
+    var crossfadeSeconds by remember(crossfade.seconds) { mutableFloatStateOf(crossfade.seconds.toFloat()) }
     val downloads = LocalDownloads.current
     val downloadItems by downloads.items.collectAsStateWithLifecycle()
     val downloadBytes by downloads.diskBytes.collectAsStateWithLifecycle()
@@ -169,6 +176,25 @@ fun SettingsScreen(
                         checked = prefs.skipSilence,
                         onChange = { appVm.setSkipSilence(it) },
                         tone = 1,
+                    )
+                    SettingsSwitchItem(
+                        icon = Icons.Rounded.Waves,
+                        title = "Crossfade",
+                        subtitle = "Fade the end of a song into the start of the next one",
+                        checked = crossfade.enabled,
+                        onChange = { appVm.setCrossfadeEnabled(it) },
+                        tone = 2,
+                    )
+                    SettingsSliderItem(
+                        icon = Icons.Rounded.Tune,
+                        title = "Crossfade length",
+                        valueLabel = if (crossfadeSeconds.roundToInt() == 0) "Off" else "${crossfadeSeconds.roundToInt()} s",
+                        value = crossfadeSeconds,
+                        onValueChange = { crossfadeSeconds = it },
+                        onValueChangeFinished = { appVm.setCrossfadeSeconds(crossfadeSeconds.roundToInt()) },
+                        valueRange = CrossfadeMath.MIN_SECONDS.toFloat()..CrossfadeMath.MAX_SECONDS.toFloat(),
+                        steps = CrossfadeMath.MAX_SECONDS - CrossfadeMath.MIN_SECONDS - 1,
+                        enabled = crossfade.enabled,
                     )
                     SettingsSwitchItem(
                         icon = Icons.Rounded.FormatQuote,

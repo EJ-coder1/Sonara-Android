@@ -7,13 +7,21 @@ import com.sonara.player.SonaraApp
 import com.sonara.player.data.Accent
 import com.sonara.player.data.MiniShape
 import com.sonara.player.data.MixBuilder
+import com.sonara.player.data.JamendoAlbum
+import com.sonara.player.data.JamendoArtist
+import com.sonara.player.data.JamendoPlaylist
 import com.sonara.player.data.OfflinePrefs
 import com.sonara.player.data.Playlist
 import com.sonara.player.data.ThemeMode
 import com.sonara.player.data.Track
 import com.sonara.player.data.UiPrefs
+import com.sonara.player.playback.CrossfadeMath
+import com.sonara.player.playback.CrossfadePrefs
+import com.sonara.player.playback.CrossfadeSettings
 import com.sonara.player.playback.PlayCache
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,6 +85,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val uiPrefs: StateFlow<UiPrefs> =
         store.uiPrefs.stateIn(viewModelScope, SharingStarted.Eagerly, UiPrefs())
+
+    /** Crossfade lives in SharedPreferences; the playback service reads the same file. */
+    private val crossfadePrefs = CrossfadePrefs.get(app)
+    private val _crossfade = MutableStateFlow(crossfadePrefs.read())
+    val crossfade: StateFlow<CrossfadeSettings> = _crossfade.asStateFlow()
     val searchHistory: StateFlow<List<String>> =
         store.searchHistory.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     /** null until loaded. */
@@ -147,6 +160,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setSwipeMiniPlayer(on: Boolean) = viewModelScope.launch { store.setSwipeMiniPlayer(on) }
     fun setAnimations(on: Boolean) = viewModelScope.launch { store.setAnimations(on) }
     fun setSkipSilence(on: Boolean) = viewModelScope.launch { store.setSkipSilence(on) }
+    fun setCrossfadeEnabled(on: Boolean) {
+        crossfadePrefs.enabled = on
+        _crossfade.value = crossfadePrefs.read()
+    }
+    /** 0..12 seconds. */
+    fun setCrossfadeSeconds(seconds: Int) {
+        crossfadePrefs.seconds = CrossfadeMath.clampSeconds(seconds)
+        _crossfade.value = crossfadePrefs.read()
+    }
     fun addSearch(query: String) = viewModelScope.launch { store.addSearch(query) }
     fun clearSearchHistory() = viewModelScope.launch { store.clearSearchHistory() }
     fun setLyricsEnabled(on: Boolean) = viewModelScope.launch { store.setLyricsEnabled(on) }
@@ -279,6 +301,15 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
     private val _online = MutableStateFlow<OnlineState>(OnlineState.Idle)
     val online: StateFlow<OnlineState> = _online.asStateFlow()
 
+    private val _onlineAlbums = MutableStateFlow<CatalogueState<JamendoAlbum>>(CatalogueState.Ready(emptyList()))
+    val onlineAlbums: StateFlow<CatalogueState<JamendoAlbum>> = _onlineAlbums.asStateFlow()
+
+    private val _onlineArtists = MutableStateFlow<CatalogueState<JamendoArtist>>(CatalogueState.Ready(emptyList()))
+    val onlineArtists: StateFlow<CatalogueState<JamendoArtist>> = _onlineArtists.asStateFlow()
+
+    private val _onlinePlaylists = MutableStateFlow<CatalogueState<JamendoPlaylist>>(CatalogueState.Ready(emptyList()))
+    val onlinePlaylists: StateFlow<CatalogueState<JamendoPlaylist>> = _onlinePlaylists.asStateFlow()
+
     init {
         viewModelScope.launch {
             _query
@@ -300,12 +331,50 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun runSearch(q: String) {
         if (q.length < 2 || !repo.isConfigured) {
             _online.value = OnlineState.Idle
+            _onlineAlbums.value = CatalogueState.Ready(emptyList())
+            _onlineArtists.value = CatalogueState.Ready(emptyList())
+            _onlinePlaylists.value = CatalogueState.Ready(emptyList())
             return
         }
         _online.value = OnlineState.Loading
-        _online.value = repo.search(q).fold(
-            onSuccess = { OnlineState.Ready(it) },
-            onFailure = { OnlineState.Error(it.friendlyMessage()) },
-        )
+        _onlineAlbums.value = CatalogueState.Loading
+        _onlineArtists.value = CatalogueState.Loading
+        _onlinePlaylists.value = CatalogueState.Loading
+
+        coroutineScope {
+            val tracksCall = async { repo.search(q, 40) }
+            val albumsCall = async { repo.searchAlbums(q, 20) }
+            val artistsCall = async { repo.searchArtists(q, 20) }
+            val playlistsCall = async { repo.searchPlaylists(q, 20) }
+
+            _online.value = tracksCall.await().fold(
+                onSuccess = { OnlineState.Ready(it) },
+                onFailure = { OnlineState.Error(it.friendlyMessage()) },
+            )
+            _onlineAlbums.value = albumsCall.await().fold(
+                onSuccess = { CatalogueState.Ready(it) },
+                onFailure = { CatalogueState.Error(it.friendlyMessage()) },
+            )
+            _onlineArtists.value = artistsCall.await().fold(
+                onSuccess = { CatalogueState.Ready(it) },
+                onFailure = { CatalogueState.Error(it.friendlyMessage()) },
+            )
+            _onlinePlaylists.value = playlistsCall.await().fold(
+                onSuccess = { CatalogueState.Ready(it) },
+                onFailure = { CatalogueState.Error(it.friendlyMessage()) },
+            )
+        }
+    }
+
+    fun playAlbum(id: String, onResult: (Result<List<Track>>) -> Unit) {
+        viewModelScope.launch { onResult(repo.albumTracks(id)) }
+    }
+
+    fun playArtist(id: String, onResult: (Result<List<Track>>) -> Unit) {
+        viewModelScope.launch { onResult(repo.artistTracks(id)) }
+    }
+
+    fun playPlaylist(id: String, onResult: (Result<List<Track>>) -> Unit) {
+        viewModelScope.launch { onResult(repo.playlistTracks(id)) }
     }
 }

@@ -23,7 +23,10 @@ This is original code. It does not copy LastWave's code (LastWave Native is GPL-
 - Library: Albums and Artists tabs, sorting (title, artist, newest, longest) and a Downloads tab; Search remembers your recent searches
 - Skip silence, now-playing bars in song lists, a bounce on the like button
 - App icon: 16 launcher icons in 5 groups (Aurora, Nebula, Obsidian, Graphite, Neon, Midnight, Slate, Pearl, Cloud, Mint, Candy, Sunset, Ocean, Forest, Crimson, Gold), each with a themed-icon layer. Switch in Settings > Appearance > App icon
-- Search: your phone and online at once
+- Search: your phone and online at once, including Jamendo tracks, albums, artists and playlists
+- Online discovery tab: recently played online tracks, a For You mix based on Jamendo similar-track results, weekly trending, latest releases, Philippines artist-country charts, Philippines-based artists, moods, Jamendo hot playlists, popular albums and artists, and genre mixes
+- Online catalog pagination: 30-track pages with Load more for trending, new releases and the Philippines chart; catalogue metadata is cached in memory for 10–30 minutes
+- Mood Radio Mixes: one-tap, 60-track queues generated from Jamendo mood tags (not continuous broadcast radio streams)
 - Settings: light/dark/system theme, wallpaper colors (Android 12+), rescan, delete all my data
 - Legal: Privacy Policy, Terms of Use, licenses (offline, in-app) + hosted copies in `docs/`
 - Proper states everywhere: loading shimmer, offline/error with Retry, empty, permission needed
@@ -82,6 +85,13 @@ branding/      logo.svg, Play Store icon, feature graphic
 docs/          privacy-policy.html, terms.html (host these, e.g. GitHub Pages)
 play-store/    listing text and the step-by-step CHECKLIST.md
 ```
+
+## Online discovery notes
+- Jamendo country charts and artist locations use the artist country/location declared on Jamendo. The Philippines section is therefore labelled as Filipino / Philippines-based discovery; it is not a guarantee that every song is mainstream OPM or Filipino-language music.
+- The For You section asks Jamendo for tracks similar to the most recently played online track. With no online listening history, it falls back to this week’s trending tracks.
+- Mood Radio Mixes build a normal Sonara playback queue from Jamendo tags. Jamendo currently warns that the URL returned by its continuous radio stream method is not working, so Sonara does not present this as a live radio broadcast.
+- Track metadata is cached in memory (about 10 minutes for track lists and 30 minutes for catalogues); the existing Media3 play cache handles audio caching separately.
+- Track download actions must continue to respect Jamendo’s `audiodownload_allowed` field and each track’s license.
 
 ## Known limits and ideas for later
 - The latest changes were written and logic-tested outside Android Studio (pure logic runs in `app/src/test`), but the Compose UI could not be compiled there. Push to GitHub and open the Actions run: a compile error shows up as a short readable list.

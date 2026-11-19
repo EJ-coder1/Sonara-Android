@@ -4,6 +4,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -17,6 +23,11 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Alignment
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Icon
@@ -35,7 +46,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.sonara.player.ui.AppViewModel
+import com.sonara.player.ui.CatalogueState
 import com.sonara.player.ui.Moods
+import com.sonara.player.data.JamendoAlbum
+import com.sonara.player.data.JamendoArtist
+import com.sonara.player.data.JamendoPlaylist
 import com.sonara.player.ui.OnlineState
 import com.sonara.player.ui.SearchViewModel
 import com.sonara.player.ui.SongsState
@@ -45,6 +60,11 @@ import com.sonara.player.ui.components.SectionHeader
 import com.sonara.player.ui.components.ShimmerRow
 import com.sonara.player.ui.components.TrackRow
 import androidx.compose.material.icons.rounded.SearchOff
+import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.LibraryMusic
+import androidx.compose.material3.Surface
+import coil.compose.AsyncImage
 
 @Composable
 fun SearchScreen(
@@ -54,9 +74,13 @@ fun SearchScreen(
 ) {
     val player = LocalPlayer.current
     val focus = LocalFocusManager.current
+    val showMessage = com.sonara.player.ui.components.LocalMessage.current
 
     val query by vm.query.collectAsStateWithLifecycle()
     val online by vm.online.collectAsStateWithLifecycle()
+    val onlineAlbums by vm.onlineAlbums.collectAsStateWithLifecycle()
+    val onlineArtists by vm.onlineArtists.collectAsStateWithLifecycle()
+    val onlinePlaylists by vm.onlinePlaylists.collectAsStateWithLifecycle()
     val songsState by appVm.songs.collectAsStateWithLifecycle()
     val playerState by player.state.collectAsStateWithLifecycle()
     val history by appVm.searchHistory.collectAsStateWithLifecycle()
@@ -213,11 +237,81 @@ fun SearchScreen(
                             }
                         }
                 }
+
+                when (val result = onlineAlbums) {
+                    CatalogueState.Loading -> item(key = "album-search-loading") { SectionHeader("Albums online") }
+                    is CatalogueState.Error -> item(key = "album-search-error") { MessageCard(result.message) }
+                    is CatalogueState.Ready<JamendoAlbum> -> if (result.items.isNotEmpty()) {
+                        item(key = "album-search-header") { SectionHeader("Albums online") }
+                        items(result.items, key = { "sa-" + it.id }) { album ->
+                            SearchCatalogueRow(album.name, album.artistName, album.imageUrl, "album") {
+                                appVm.addSearch(q)
+                                vm.playAlbum(album.id) { loaded -> loaded.onSuccess { tracks -> if (tracks.isNotEmpty()) player.playQueue(tracks, 0) else showMessage("No playable tracks were found in ${album.name}.") }.onFailure { showMessage(it.message ?: "Couldn't open this album.") } }
+                            }
+                        }
+                    }
+                }
+                when (val result = onlineArtists) {
+                    CatalogueState.Loading -> item(key = "artist-search-loading") { SectionHeader("Artists online") }
+                    is CatalogueState.Error -> item(key = "artist-search-error") { MessageCard(result.message) }
+                    is CatalogueState.Ready<JamendoArtist> -> if (result.items.isNotEmpty()) {
+                        item(key = "artist-search-header") { SectionHeader("Artists online") }
+                        items(result.items, key = { "sr-" + it.id }) { artist -> SearchCatalogueRow(artist.name, "Independent artist", artist.imageUrl, "artist") { appVm.addSearch(q); vm.playArtist(artist.id) { loaded -> loaded.onSuccess { tracks -> if (tracks.isNotEmpty()) player.playQueue(tracks, 0) else showMessage("No playable tracks were found for ${artist.name}.") }.onFailure { showMessage(it.message ?: "Couldn't open this artist.") } } } }
+                    }
+                }
+                when (val result = onlinePlaylists) {
+                    CatalogueState.Loading -> item(key = "playlist-search-loading") { SectionHeader("Playlists online") }
+                    is CatalogueState.Error -> item(key = "playlist-search-error") { MessageCard(result.message) }
+                    is CatalogueState.Ready<JamendoPlaylist> -> if (result.items.isNotEmpty()) {
+                        item(key = "playlist-search-header") { SectionHeader("Playlists online") }
+                        items(result.items, key = { "sp-" + it.id }) { playlist -> SearchCatalogueRow(playlist.name, "By ${playlist.creatorName}", null, "playlist") { appVm.addSearch(q); vm.playPlaylist(playlist.id) { loaded -> loaded.onSuccess { tracks -> if (tracks.isNotEmpty()) player.playQueue(tracks, 0) else showMessage("This playlist has no playable tracks right now.") }.onFailure { showMessage(it.message ?: "Couldn't open this playlist.") } } } }
+                    }
+                }
             } else if (localMatches.isEmpty()) {
                 item(key = "none") {
                     MessageCard("No songs on your phone match \"$q\".", icon = Icons.Rounded.SearchOff)
                 }
             }
+        }
+    }
+}
+
+
+@Composable
+private fun SearchCatalogueRow(
+    title: String,
+    subtitle: String,
+    imageUrl: String?,
+    kind: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (imageUrl != null) {
+                    AsyncImage(model = imageUrl, contentDescription = title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                } else {
+                    val icon = when (kind) {
+                        "artist" -> Icons.Rounded.Person
+                        "album" -> Icons.Rounded.Album
+                        else -> Icons.Rounded.LibraryMusic
+                    }
+                    Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            }
+            Icon(Icons.Rounded.PlayArrow, contentDescription = "Play $title", tint = MaterialTheme.colorScheme.primary)
         }
     }
 }

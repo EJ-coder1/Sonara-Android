@@ -4,11 +4,7 @@ import android.provider.Settings
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -20,9 +16,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -55,27 +49,51 @@ fun rememberMotionEnabled(): Boolean {
     return system && LocalUiPrefs.current.animations
 }
 
-/** Three little bars that dance while music plays and rest when it is paused. */
+/** Where one bar of [PlayingBars] bounces between, and how long one full up-and-down swing takes. */
+private class BarSpec(val low: Float, val high: Float, val swingMs: Int)
+
+private val PlayingBarSpecs = listOf(
+    BarSpec(0.20f, 1.00f, 480),
+    BarSpec(0.35f, 0.90f, 640),
+    BarSpec(0.15f, 0.85f, 560),
+)
+
+/**
+ * Three little bars (the equalizer "|||") that dance ONLY while [active] is true (music is
+ * really playing) and hold still where they are when it is false (paused). Each bar keeps its own
+ * height, so pausing freezes the bars mid-dance and playing again carries on from there.
+ * They also stay still when animations are turned off (Settings, or Android's animation scale).
+ */
 @Composable
 fun PlayingBars(
     active: Boolean,
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.primary,
 ) {
-    val bars: List<State<Float>> = if (active) {
-        val t = rememberInfiniteTransition(label = "bars")
-        listOf(
-            t.animateFloat(0.20f, 1.00f, infiniteRepeatable(tween(480, easing = LinearEasing), RepeatMode.Reverse), label = "bar1"),
-            t.animateFloat(0.35f, 0.90f, infiniteRepeatable(tween(640, easing = LinearEasing), RepeatMode.Reverse), label = "bar2"),
-            t.animateFloat(0.15f, 0.85f, infiniteRepeatable(tween(560, easing = LinearEasing), RepeatMode.Reverse), label = "bar3"),
-        )
-    } else {
-        remember { listOf(mutableFloatStateOf(0.30f), mutableFloatStateOf(0.55f), mutableFloatStateOf(0.40f)) }
+    val animate = active && rememberMotionEnabled()
+    val bars = remember {
+        listOf(Animatable(0.30f), Animatable(0.55f), Animatable(0.40f))
+    }
+    bars.forEachIndexed { i, bar ->
+        val spec = PlayingBarSpecs[i]
+        // The effect runs while `animate` is true and is cancelled the moment it turns false;
+        // a cancelled Animatable simply stays at its current value, which is the "pause".
+        LaunchedEffect(animate) {
+            if (!animate) return@LaunchedEffect
+            val range = spec.high - spec.low
+            while (true) {
+                for (target in floatArrayOf(spec.high, spec.low)) {
+                    val distance = kotlin.math.abs(target - bar.value) / range
+                    val duration = (distance * spec.swingMs / 2f).toInt().coerceAtLeast(16)
+                    bar.animateTo(target, tween(duration, easing = LinearEasing))
+                }
+            }
+        }
     }
     Canvas(modifier.size(16.dp)) {
         val barWidth = size.width / 5f
-        bars.forEachIndexed { i, state ->
-            val h = size.height * state.value
+        bars.forEachIndexed { i, bar ->
+            val h = size.height * bar.value
             drawRoundRect(
                 color = color,
                 topLeft = Offset(i * 2f * barWidth, size.height - h),

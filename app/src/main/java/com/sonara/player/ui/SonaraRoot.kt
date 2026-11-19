@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.NavigationBar
@@ -75,6 +76,7 @@ import com.sonara.player.ui.components.LocalUiPrefs
 import com.sonara.player.ui.home.HomeScreen
 import com.sonara.player.ui.library.FAVORITES_ID
 import com.sonara.player.ui.library.LibraryScreen
+import com.sonara.player.ui.online.OnlineScreen
 import com.sonara.player.ui.library.PlaylistDetailScreen
 import com.sonara.player.ui.player.MiniPlayer
 import com.sonara.player.ui.player.NowPlayingScreen
@@ -91,6 +93,7 @@ import kotlinx.coroutines.launch
 
 private const val ROUTE_HOME = "home"
 private const val ROUTE_SEARCH = "search"
+private const val ROUTE_ONLINE = "online"
 private const val ROUTE_LIBRARY = "library"
 private const val ROUTE_SETTINGS = "settings"
 private const val ROUTE_APP_ICONS = "appicons"
@@ -294,7 +297,7 @@ private fun MainContent(
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
-    val topLevel = route == ROUTE_HOME || route == ROUTE_SEARCH || route == ROUTE_LIBRARY
+    val topLevel = route == ROUTE_HOME || route == ROUTE_SEARCH || route == ROUTE_ONLINE || route == ROUTE_LIBRARY
     val hasTrack = playerState.current != null
 
     // "Go to artist / album" from the track menu: show the Search tab with that text.
@@ -330,6 +333,12 @@ private fun MainContent(
                                 label = { Text("Search") },
                             )
                             NavigationBarItem(
+                                selected = route == ROUTE_ONLINE,
+                                onClick = { nav.navigateTopLevel(ROUTE_ONLINE) },
+                                icon = { Icon(Icons.Rounded.Explore, contentDescription = null) },
+                                label = { Text("Online") },
+                            )
+                            NavigationBarItem(
                                 selected = route == ROUTE_LIBRARY,
                                 onClick = { nav.navigateTopLevel(ROUTE_LIBRARY) },
                                 icon = { Icon(Icons.Rounded.LibraryMusic, contentDescription = null) },
@@ -355,6 +364,13 @@ private fun MainContent(
                     )
                 }
                 composable(ROUTE_SEARCH) { SearchScreen(padding = inner, appVm = appVm) }
+                composable(ROUTE_ONLINE) {
+                    OnlineScreen(
+                        padding = inner,
+                        appVm = appVm,
+                        onOpenSearch = { nav.navigateTopLevel(ROUTE_SEARCH) },
+                    )
+                }
                 composable(ROUTE_LIBRARY) {
                     LibraryScreen(
                         padding = inner,

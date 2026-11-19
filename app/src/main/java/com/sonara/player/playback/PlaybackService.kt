@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -28,13 +29,16 @@ import com.sonara.player.SonaraApp
  *
  * Everything that must keep working while the screen is off lives HERE, not in the UI:
  *  - moving on to the next song when a song can't be played
- *  - the cover art and metadata the notification shows (kept in sync by the session)
+ *  - the cover art and metadata the notification shows (kept in sync by the session, see [updateTrackMetadata])
+ *  - crossfade between songs (see [CrossfadeController])
  *  - the audio effects (equalizer, bass, loudness) attached to the player's audio session
  */
 @OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
+    private var artworkLoader: ArtworkBitmapLoader? = null
+    private var crossfade: CrossfadeController? = null
     private var consecutiveErrors = 0
 
     private val serviceListener = object : Player.Listener {
@@ -56,6 +60,18 @@ class PlaybackService : MediaSessionService() {
 
         override fun onAudioSessionIdChanged(audioSessionId: Int) {
             (application as SonaraApp).container.fx.attach(audioSessionId)
+        }
+
+        // Every way a song can change ends up in one of these two callbacks: it ended by itself
+        // (auto-next), Next / Previous in the app, the notification, the lock screen, a headset or
+        // Bluetooth button, a tap in the queue, or a crossfade starting. All of them go through
+        // the same single function below.
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            updateTrackMetadata(mediaItem)
+        }
+
+        override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
+            updateTrackMetadata(mediaSession?.player?.currentMediaItem)
         }
     }
 
@@ -84,9 +100,16 @@ class PlaybackService : MediaSessionService() {
 
         PlaybackBridge.attach(player)
 
+        val loader = ArtworkBitmapLoader(this)
+        artworkLoader = loader
+
+        // Crossfade: the session player stays the one real player; a second player is only created
+        // for the few seconds two songs overlap (see CrossfadeController).
+        crossfade = CrossfadeController(player, CrossfadePrefs.get(this)) { buildStandbyPlayer(audioAttributes) }
+
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(openApp)
-            .setBitmapLoader(ArtworkBitmapLoader(this))
+            .setBitmapLoader(loader)
             .setCallback(object : MediaSession.Callback {
                 override fun onAddMediaItems(
                     mediaSession: MediaSession,
@@ -106,6 +129,34 @@ class PlaybackService : MediaSessionService() {
         // Effects need the player's audio session id; it exists as soon as the player is built.
         (application as SonaraApp).container.fx.attach(player.audioSessionId)
     }
+
+    /**
+     * THE one function every song change goes through (auto-next, Next, Previous, notification,
+     * lock screen, Bluetooth, queue taps, crossfade).
+     *
+     * With Media3 the session metadata (title, artist, album, cover) and the MediaStyle notification
+     * are built from the player's current item, so what this function does is:
+     *  1. warms the cover cache for this song and the next one, so the notification and the
+     *     lock-screen session get title and cover together, with no waiting on disk or network;
+     *  2. asks the notification to refresh right now. Media3 re-posts it and keeps the service in the
+     *     foreground while playback is running (the equivalent of notify() + startForeground()).
+     */
+    private fun updateTrackMetadata(item: MediaItem?) {
+        val session = mediaSession ?: return
+        val player = session.player
+        artworkLoader?.prefetch(item)
+        val nextIndex = player.nextMediaItemIndex
+        if (nextIndex != C.INDEX_UNSET) artworkLoader?.prefetch(player.getMediaItemAt(nextIndex))
+        triggerNotificationUpdate()
+    }
+
+    /** The second player, used only while two songs overlap. The main player owns audio focus. */
+    private fun buildStandbyPlayer(attributes: AudioAttributes): ExoPlayer =
+        ExoPlayer.Builder(this)
+            .setAudioAttributes(attributes, /* handleAudioFocus = */ false)
+            .setHandleAudioBecomingNoisy(false)
+            .setMediaSourceFactory(buildMediaSourceFactory())
+            .build()
 
     /**
      * Online songs go through the play cache (saved while streaming, so replays are free).
@@ -142,6 +193,8 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         PlaybackBridge.detach()
+        crossfade?.release()
+        crossfade = null
         (application as SonaraApp).container.fx.release()
         mediaSession?.run {
             player.removeListener(serviceListener)
