@@ -296,7 +296,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 class SearchViewModel(app: Application) : AndroidViewModel(app) {
     private val container = (app as SonaraApp).container
     private val repo = container.jamendo
-    private val worldwideCatalog = container.worldwideMusicCatalog
+    private val worldwideMusicCatalogRepository = container.worldwideMusicCatalog
     private val primaryStorefront = MusicRegion.fromDeviceRegion().countryIso2
 
     val isConfigured: Boolean get() = repo.isConfigured
@@ -349,7 +349,7 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
 
         _worldwideCatalog.value = GlobalCatalogState.Loading
         coroutineScope {
-            val globalCall = async { worldwideCatalog.search(q, primaryStorefront) }
+            val globalCall = async { worldwideMusicCatalogRepository.search(q, primaryStorefront) }
 
             if (repo.isConfigured) {
                 _online.value = OnlineState.Loading
@@ -385,7 +385,7 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
                 _onlinePlaylists.value = CatalogueState.Ready(emptyList())
             }
 
-            _worldwideCatalog.value = globalCall.await().fold(
+            _worldwideCatalog.value = globalCall.await().fold<GlobalCatalogState>(
                 onSuccess = { GlobalCatalogState.Ready(it) },
                 onFailure = { GlobalCatalogState.Error(it.friendlyMessage()) },
             )
