@@ -138,8 +138,9 @@ class PlaybackService : MediaSessionService() {
      * are built from the player's current item, so what this function does is:
      *  1. warms the cover cache for this song and the next one, so the notification and the
      *     lock-screen session get title and cover together, with no waiting on disk or network;
-     *  2. asks the notification to refresh right now. Media3 re-posts it and keeps the service in the
-     *     foreground while playback is running (the equivalent of notify() + startForeground()).
+     *  2. lets Media3's MediaSessionService publish the updated current-item metadata to the
+     *     system notification and lock-screen session. Media3 observes player transitions directly;
+     *     there is no public manual notification-refresh method to call here.
      */
     private fun updateTrackMetadata(item: MediaItem?) {
         val session = mediaSession ?: return
@@ -147,7 +148,6 @@ class PlaybackService : MediaSessionService() {
         artworkLoader?.prefetch(item)
         val nextIndex = player.nextMediaItemIndex
         if (nextIndex != C.INDEX_UNSET) artworkLoader?.prefetch(player.getMediaItemAt(nextIndex))
-        triggerNotificationUpdate()
     }
 
     /** The second player, used only while two songs overlap. The main player owns audio focus. */

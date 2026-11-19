@@ -97,6 +97,8 @@ fun OnlineScreen(
     val filipino by onlineVm.filipino.collectAsStateWithLifecycle()
     val forYou by onlineVm.forYou.collectAsStateWithLifecycle()
     val selectedMood by onlineVm.mood.collectAsStateWithLifecycle()
+    // Snapshot the delegated StateFlow value into a stable local for LazyList item lambdas.
+    val activeMood = selectedMood
     val moodTracks by onlineVm.moodTracks.collectAsStateWithLifecycle()
     val albums by onlineVm.albums.collectAsStateWithLifecycle()
     val artists by onlineVm.artists.collectAsStateWithLifecycle()
@@ -247,12 +249,12 @@ fun OnlineScreen(
                     }
                 }
             }
-            if (selectedMood != null) {
-                item { SectionHeader("${selectedMood.label} mix", subtitle = "Tracks matched by Jamendo mood tags") }
+            if (activeMood != null) {
+                item { SectionHeader("${activeMood.label} mix", subtitle = "Tracks matched by Jamendo mood tags") }
                 item {
                     TrackSection(
                         state = moodTracks,
-                        onRetry = { onlineVm.loadMood(selectedMood) },
+                        onRetry = { onlineVm.loadMood(activeMood) },
                         onLoadMore = null,
                         onPlay = { tracks, index -> player.playQueue(tracks, index) },
                     )

@@ -62,6 +62,7 @@ import com.sonara.player.ui.components.TrackRow
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material3.Surface
 import coil.compose.AsyncImage
